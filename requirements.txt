@@ -1,1 +1,2 @@
 setuptools>=39.0,<40.0
+ujson==1.35
