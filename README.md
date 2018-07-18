@@ -21,6 +21,6 @@ source venv/bin/activate
 
 # dépendances:
 make install-dependencies-dev
-pip install develop
+python setup.py develop
 ```
 

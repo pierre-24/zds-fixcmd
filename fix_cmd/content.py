@@ -1,6 +1,5 @@
 # Note: inspired by https://github.com/zestedesavoir/zds-site/blob/dev/zds/tutorialv2/
 
-import os
 import zipfile
 
 try:
@@ -34,27 +33,16 @@ class Container(Base):
     children = []
     children_dict = {}
 
-    introduction = None
-    conclusion = None
+    introduction_path = None
+    introduction_value = ''
+    conclusion_path = None
+    conclusion_value = ''
 
     def __init__(self, title, slug='', parent=None):
         super().__init__(title, slug, parent)
 
         self.children = []
         self.children_dict = {}
-
-    def get_path(self):
-        """Get the physical path to the container.
-
-        :return: physical path
-        :rtype: str
-        """
-
-        base = ''
-        if self.parent:
-            base = self.parent.get_path()
-
-        return os.path.join(base, self.slug)
 
     def top_container(self):
         """
@@ -67,7 +55,7 @@ class Container(Base):
 
         return current
 
-    def has_children(self, _type=None):
+    def can_add_children(self, _type=None):
         """
 
         :param _type: the type of which the children should be
@@ -77,7 +65,7 @@ class Container(Base):
         """
 
         if len(self.children) == 0:
-            return False
+            return True
 
         if _type is not None:
             return isinstance(self.children[0], _type)
@@ -91,24 +79,12 @@ class Container(Base):
         :type child: Container|Extract
         """
 
-        if self.has_children(Extract if child is Extract else Container):
-            raise Exception('Impossible d\'ajouter {} au conteneur {}'.format(child.title, self.title))
+        if not self.can_add_children(Extract if type(child) is Extract else Container):
+            raise Exception('Impossible d\'ajouter "{}" au conteneur "{}"'.format(child.title, self.title))
 
         child.parent = self
         self.children.append(child)
         self.children_dict[child.slug] = child
-
-    def get_introduction(self):
-        if self.introduction:
-            return self.top_container()._read(self.introduction)
-        else:
-            return None
-
-    def get_conclusion(self):
-        if self.conclusion:
-            return self.top_container()._read(self.conclusion)
-        else:
-            return None
 
 
 class Extract(Base):
@@ -116,37 +92,11 @@ class Extract(Base):
     A content extract from a Container.
     """
 
-    text = None
+    text_path = None
+    text_value = ''
 
     def __init__(self, title, slug='', parent=None):
         super().__init__(title, slug, parent)
-
-    def get_path(self):
-        """
-        Get the physical path to the extract.
-
-        :return: physical path
-        :rtype: str
-        """
-
-        return os.path.join(self.parent.get_path(), self.slug) + '.md'
-
-    def get_text(self):
-        """Get the text of the extract
-
-        :rtype: str
-        """
-
-        return self.parent.top_container()._read(self.text)
-
-    def update_text(self, new_text):
-        """Update the text in the extract
-
-        :param new_text: the new extract text
-        :type new_text: str
-        """
-
-        return self.parent.top_container()._write(self.text, new_text)
 
 
 class BadArchiveError(Exception):
@@ -164,28 +114,43 @@ class Content(Container):
     manifest = ''
     archive = None
 
-    def __init__(self, path):
-        super().__init__('', '')
-        self.open(path)
+    def __init__(self, title, slug=''):
+        super().__init__(title, slug, None)
 
-    def open(self, path):
+    @staticmethod
+    def extract(path):
         """Open a zip file and create a content
 
-            :param path: the path
+        :param path: the path
+        :type path: str
+        :rtype: Content
+        """
+
+        def read_in_zip(archive, path):
+            """Read a file in the archive and get text
+
+            :param archive: the zip
+            :type archive: zpifile.ZupFile
+            :param path: path in the archive
             :type path: str
-            :rtype: Content
+            :rtype: str
             """
+
+            try:
+                txt = str(archive.read(path), 'utf-8')
+            except KeyError:
+                raise BadArchiveError('Cette archive ne contient pas de fichier {}.'.format(path))
+            except UnicodeDecodeError:
+                raise BadArchiveError('L\'encodage de {} n\'est pas de l\'UTF-8.'.format(path))
+
+            return txt
 
         zip_archive = zipfile.ZipFile(path, 'a')
 
         # is the manifest ok ?
         try:
-            manifest = str(zip_archive.read('manifest.json'), 'utf-8')
+            manifest = read_in_zip(zip_archive, 'manifest.json')
             manifest = json_handler.loads(manifest)
-        except KeyError:
-            raise BadArchiveError('Cette archive ne contient pas de fichier manifest.json.')
-        except UnicodeDecodeError:
-            raise BadArchiveError('L\'encodage du manifest.json n\'est pas de l\'UTF-8.')
         except ValueError:
             raise BadArchiveError(
                 'Une erreur est survenue durant la lecture du manifest, '
@@ -193,22 +158,26 @@ class Content(Container):
         if 'version' not in manifest or manifest['version'] not in (2, 2.1):
             raise BadManifestError('Ce n\'est pas un manifest d\'un contenu récent (v2)')
 
-        # extract infos
-        self.slug = manifest['slug']
-        self.title = manifest['title']
+        # extract info
+        if 'title' not in manifest:
+            raise BadManifestError('Pas de titre dans le manifest')
+        if 'slug' not in manifest:
+            raise BadManifestError('Pas de slug dans le manifest')
+
+        content = Content(manifest['title'], manifest['slug'])
 
         if 'type' in manifest:
-            self.type = manifest['type']
+            content.type = manifest['type']
         else:
-            self.type = 'TUTORIAL'
+            content.type = 'TUTORIAL'
 
-        self.manifest = manifest
+        content.manifest = manifest
 
         # extract containers and extracts:
         if 'introduction' in manifest:
-            self.introduction = manifest['introduction']
+            content.introduction_path = manifest['introduction']
         if 'conclusion' in manifest:
-            self.conclusion = manifest['conclusion']
+            content.conclusion_path = manifest['conclusion']
 
         def fill(json_sub, parent):
             """Create the structure from the manifest
@@ -228,78 +197,68 @@ class Content(Container):
                     if child['object'] == 'container':
                         c = Container(child['title'], child['slug'])
                         if 'introduction' in child:
-                            c.introduction = child['introduction']
+                            c.introduction_path = child['introduction']
                         if 'conclusion' in child:
-                            c.conclusion = child['conclusion']
+                            c.conclusion_path = child['conclusion']
 
                         fill(child, c)
                     else:
                         c = Extract(child['title'], child['slug'])
                         if 'text' in child:
-                            c.text = child['text']
+                            c.text_path = child['text']
 
                     parent.add_child(c)
 
-        fill(manifest, self)
+        fill(manifest, content)
 
-        # check if all files are present in the archive
-        def walk(container):
+        # check if all files are present in the archive, and extract them
+        def walk(archive, container):
             """Get all files that the archive should contain
 
+            :param archive: the zip
+            :type archive: zpifile.ZupFile
             :param container: the container
             :type container: Container
             """
-            if container.introduction:
-                yield container.introduction
-            if container.conclusion:
-                yield container.conclusion
+            if container.introduction_path:
+                container.introduction_value = read_in_zip(archive, container.introduction_path)
+            if container.conclusion_path:
+                container.conclusion_value = read_in_zip(archive, container.conclusion_path)
 
             for child in container.children:
                 if isinstance(child, Container):
-                    for _y in walk(child):
-                        yield _y
+                    walk(archive, child)
                 else:
-                    yield child.text
+                    child.text_value = read_in_zip(archive, child.text_path)
 
-        for f in walk(self):
-            try:
-                zip_archive.getinfo(f)
-            except KeyError:
-                BadArchiveError('Le fichier {} n\'existe pas dans l\'archive'.format(f))
+        walk(zip_archive, content)
+        return content
 
-        self.archive = zip_archive
+    def save(self, path):
+        zip_archive = zipfile.ZipFile(path, 'w')
 
-    def close(self):
-        self.archive.close()
-        self.archive = None
+        # dump manifest
+        zip_archive.writestr('manifest.json', json_handler.dumps(self.manifest, indent=4, ensure_ascii=False))
 
-    def _read(self, path):
-        """Read a file in the archive and get text
+        # dump other files
+        def walk(archive, container):
+            """Get all files that the archive should contain
 
-        :param path: path in the archive
-        :type path: str
-        :rtype: str
-        """
-        if self.archive is None:
-            raise IOError('closed')
+            :param archive: the zip
+            :type archive: zpifile.ZupFile
+            :param container: the container
+            :type container: Container
+            """
+            if container.introduction_path:
+                zip_archive.writestr(container.introduction_path, container.introduction_value)
+            if container.conclusion_path:
+                zip_archive.writestr(container.conclusion_path, container.conclusion_value)
 
-        try:
-            txt = str(self.archive.read(path), 'utf-8')
-        except KeyError:
-            raise BadArchiveError('Cette archive ne contient pas de fichier {}.'.format(path))
-        except UnicodeDecodeError:
-            raise BadArchiveError('L\'encodage de {} n\'est pas de l\'UTF-8.'.format(path))
+            for child in container.children:
+                if isinstance(child, Container):
+                    walk(archive, child)
+                else:
+                    zip_archive.writestr(child.text_path, child.text_value)
 
-        return txt
-
-    def _write(self, path, bytes):
-        if self.archive is None:
-            raise IOError('closed')
-
-        self.archive.writestr(self.archive.getinfo(path), bytes)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        walk(zip_archive, self)
+        zip_archive.close()
