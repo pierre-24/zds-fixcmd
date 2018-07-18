@@ -1,13 +1,13 @@
 from tests import ZdsFixCmdTestCase
 
-from fix_cmd import fix_math, math_parser
+from fix_cmd import math_parser
 from fix_cmd.math_parser import MathToken as T
 
 
 class MathTestCase(ZdsFixCmdTestCase):
 
-    def test_parsing(self):
-        """Test the parsing of a math expression"""
+    def test_lexer(self):
+        """Test the lexing of a math expression"""
 
         # Lexer
         tests_lexer = [
@@ -44,43 +44,85 @@ class MathTestCase(ZdsFixCmdTestCase):
 
             self.assertEqual(lexed[-1].type, math_parser.EOF)
 
-        # parser
-        m = '\\int_a^{\infty} \\left[\\frac{x}{e^{5x}}\\right]\,dx'
-        p = math_parser.MathParser(math_parser.MathLexer(m)).expression()
-        self.assertEqual(math_parser.Interpreter(p).interpret(), m)
+    def test_parser(self):
+        """Test the parsing of a math expression"""
 
-    def test_latex_custom_command(self):
-        """Test LaTeXCustomCommand definition and usage"""
+        # base
+        m = '\\int_{a}^\\infty\\frac{1}{x}\\\\,dx'
+        ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()
+        self.assertEqual(m, math_parser.Interpreter(ast).interpret())
 
-        # from string:
-        n = fix_math.LaTeXCustomCommand.from_string('\\newcommand\\test{\\textit}')
-        self.assertEqual(n.name, '\\test')
-        self.assertEqual(n.nargs, 0)
-        self.assertEqual(n.value, '\\textit')
+        t = ast
+        self.assertEqual(type(t.left), math_parser.Command)
+        self.assertEqual(t.left.name, 'int')
+        self.assertEqual(len(t.left.parameters), 0)
 
-        self.assertEqual(n.use(), '\\textit')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.String)
+        self.assertEqual(t.left.content, '_')
 
-        n = fix_math.LaTeXCustomCommand.from_string('\\newcommand{\\test}{\\textit}')
-        self.assertEqual(n.name, '\\test')
-        self.assertEqual(n.nargs, 0)
-        self.assertEqual(n.value, '\\textit')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.SubElement)
+        self.assertEqual(type(t.left.element), math_parser.Expression)
+        self.assertEqual(type(t.left.element.left), math_parser.String)
+        self.assertEqual(t.left.element.left.content, 'a')
 
-        self.assertEqual(n.use(), '\\textit')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.String)
+        self.assertEqual(t.left.content, '^')
 
-        n = fix_math.LaTeXCustomCommand.from_string('\\newcommand{\\test}[1]{\\textit{#1}}')
-        self.assertEqual(n.name, '\\test')
-        self.assertEqual(n.nargs, 1)
-        self.assertEqual(n.value, '\\textit{{{1}}}')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.Command)
+        self.assertEqual(t.left.name, 'infty')
+        self.assertEqual(len(t.left.parameters), 0)
 
-        self.assertEqual(n.use(('test',)), '\\textit{test}')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.Command)
+        self.assertEqual(t.left.name, 'frac')
+        self.assertEqual(len(t.left.parameters), 2)
+        self.assertTrue(all(type(a) is math_parser.SubElement for a in t.left.parameters))
+        self.assertTrue(all(type(a.element) is math_parser.Expression for a in t.left.parameters))
+        self.assertTrue(all(type(a.element.left) is math_parser.String for a in t.left.parameters))
+        self.assertEqual(t.left.parameters[0].element.left.content, '1')
+        self.assertEqual(t.left.parameters[1].element.left.content, 'x')
 
-        n = fix_math.LaTeXCustomCommand.from_string('\\newcommand\\test[1]{\\textit{#1}}')
-        self.assertEqual(n.name, '\\test')
-        self.assertEqual(n.nargs, 1)
-        self.assertEqual(n.value, '\\textit{{{1}}}')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.String)
+        self.assertEqual(t.left.content, '\\\\')
 
-        self.assertEqual(n.use(('test',)), '\\textit{test}')
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.String)
+        self.assertEqual(t.left.content, ',dx')
 
-        # more tricky:
-        n = fix_math.LaTeXCustomCommand.from_string('\\newcommand\\inv[2]{#2, #1}')
-        self.assertEqual(n.use(('1', '2')), '2, 1')
+        self.assertIsNone(t.right)
+
+        # environments
+        m = '\\begin{a}[1]\\begin{b}[2]\\begin{c}x\\end{c}\\end{b}\\begin{c}y\\end{c}\\end{a}'
+        ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()
+        self.assertEqual(m, math_parser.Interpreter(ast).interpret())
+
+        t = ast
+        self.assertEqual(type(t.left), math_parser.Environment)
+        self.assertEqual(t.left.name, 'a')
+        self.assertEqual(len(t.left.parameters), 1)
+        self.assertEqual(t.left.parameters[0].element.left.content, '1')
+
+        self.assertIsNone(t.right)
+
+        t = t.left.content
+        self.assertEqual(type(t.left), math_parser.Environment)
+        self.assertEqual(t.left.name, 'b')
+        self.assertEqual(len(t.left.parameters), 1)
+        self.assertEqual(t.left.parameters[0].element.left.content, '2')
+
+        x = t.left.content
+        self.assertEqual(type(x.left), math_parser.Environment)
+        self.assertEqual(x.left.name, 'c')
+        self.assertEqual(len(x.left.parameters), 0)
+        self.assertEqual(x.left.content.left.content, 'x')
+
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.Environment)
+        self.assertEqual(t.left.name, 'c')
+        self.assertEqual(len(t.left.parameters), 0)
+        self.assertEqual(t.left.content.left.content, 'y')

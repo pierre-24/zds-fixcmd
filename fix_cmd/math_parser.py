@@ -6,16 +6,17 @@ Grammar:
 ```
 BSLASH := '\' ;
 LCB := '{' ;
-RCB = '}' ;
+RCB := '}' ;
+LSB := '[' ;
+RSB = ']' ;
 
 word := [a-zA-Z]* ;
-not_word :=  [1-9+-*/=:()[]] | SPACE | BSLASH (LCB | RCB) ;
-string := (not_word? word)* ;
+string := CHAR* ;
 
-sub_element := LCB math RCB ;
+sub_element := (LCB expression RCB) | (LSB expression RSB) ;
 command := BSLASH word sub_element* ;
-environment := BSLASH "begin" subelement* math BSLASH "end" LCB word RCB ;
-expression = (string | command | environment | sub_element) math? ;
+environment := BSLASH "begin" subelement* expression BSLASH "end" LCB word RCB ;
+expression := (string | command | environment | sub_element) expression? ;
 
 ast := expression? EOF ;
 ```
@@ -23,14 +24,16 @@ ast := expression? EOF ;
 Enough for the current needs.
 """
 
-BSLASH, LCB, RCB, EOF = ('\\', '{', '}', 'EOF')
+BSLASH, LCB, RCB, LSB, RSB, EOF = ('\\', '{', '}', '[', ']', 'EOF')
 STRING = 'STRING'
 SYMBOL = 'SYMBOL'
 
 SYMBOLS_TR = {
     '\\': BSLASH,
     '{': LCB,
-    '}': RCB
+    '}': RCB,
+    '[': LSB,
+    ']': RSB,
 }
 
 
@@ -139,11 +142,14 @@ class SubElement(AST):
 
     :param element: the element
     :type element: Expression
+    :param squared: LSB instead of LCB
+    :type squared: bool
     """
 
-    def __init__(self, element):
+    def __init__(self, element, squared=False):
         super().__init__()
         self.element = element
+        self.squared = squared
         self.element.parent = self
 
 
@@ -184,182 +190,6 @@ class Environment(AST):
 
         for p in parameters:
             p.parent = self
-
-
-class ParserException(Exception):
-    def __init__(self, token, msg):
-        super().__init__('parser error at position {} [{}]: {}'.format(token.position, repr(token), msg))
-        self.token = token
-        self.message = msg
-
-
-class MathParser:
-    """Parser (generate and AST from the tokens).
-
-    :type lexer: MathLexer
-    :param lexer: The lexer
-    """
-
-    def __init__(self, lexer):
-        self.lexer = lexer
-        self.tokenizer = lexer.tokenize()
-        self.current_token = None
-        self.previous_tokens = []
-        self.use_previous = 0
-        self.atom_id = 0
-        self.next()
-
-    def eat(self, token_type):
-        """Consume the token if of the right type
-
-        :param token_type: the token type
-        :type token_type: str
-        :raise ParserException: if not of the correct type
-        """
-        if self.current_token.type == token_type:
-            self.next()
-        else:
-            raise ParserException(self.current_token, 'token must be {}'.format(token_type))
-
-    def next(self):
-        """Get the next token
-        """
-
-        try:
-            if self.current_token is not None:
-                self.previous_tokens.append(self.current_token)
-            self.current_token = next(self.tokenizer)
-        except StopIteration:
-            self.current_token = MathToken(EOF, None)
-
-    def word(self):
-        """Ensure that the current token is a word
-
-        :rtype: str
-        """
-
-        if self.current_token.type != STRING:
-            raise ParserException(self.current_token, 'expected STRING')
-
-        i = 0
-        for c in self.current_token.value:
-            if not c.isalpha():
-                break
-            i += 1
-
-        word = self.current_token.value[0:i + 1]
-        self.current_token.value = self.current_token.value[i + 1:]
-        self.current_token.position += i
-
-        if word == '':
-            raise ParserException(self.current_token, 'empty word')
-
-        return word
-
-    def environment_name(self):
-        """
-
-        :rtype: str
-        """
-
-        self.eat(LCB)
-        node = self.word()
-
-        if self.current_token.value != '':
-            raise ParserException(self.current_token, 'environement name is not a word')
-
-        self.eat(RCB)
-
-        return node
-
-    def sub_element(self):
-        """element inside curly braces
-
-        :rtype: SubElement
-        """
-
-        self.eat(LCB)
-        node = self.expression()
-        self.eat(RCB)
-
-        return SubElement(node)
-
-    def expression(self):
-        """Math
-
-        :rtype: Expression
-        """
-
-        if self.current_token.type == STRING:
-            left = String(self.current_token.value)
-            self.next()
-        elif self.current_token.type == LCB:
-            left = self.sub_element()
-        elif self.current_token.type == BSLASH:
-            self.eat(BSLASH)
-            if self.current_token.type in [LCB, RCB]:  # it was only escaping
-                left = String('\\' + self.current_token.value)
-                self.next()
-            elif self.current_token.type == STRING:  # it is either an environment or a command, let's see
-                name = self.word()
-
-                string_left = self.current_token.value != ''
-
-                is_environment = False
-                if name == 'begin':  # yeah, it is an environment
-                    if string_left:
-                        raise ParserException(self.current_token, 'LCB expected!')
-
-                    is_environment = True
-                    name = self.environment_name()
-
-                parameters = []
-                if not string_left:
-                    self.next()
-                    while self.current_token.type == LCB:
-                        parameters.append(self.sub_element())
-
-                if not is_environment:
-                    left = Command(name, parameters)
-                else:
-                    content = self.expression()
-
-                    # environment termination (check that it makes sense!)
-                    self.eat(BSLASH)
-                    w = self.word()
-                    if w != 'end':
-                        raise ParserException(self.current_token, 'expected "end"')
-                    self.eat(LCB)
-                    w = self.word()
-                    if w != name:
-                        raise ParserException(self.current_token, 'beging "{}" but end "{}"'.format(name, w))
-                    self.eat(RCB)
-
-                    left = Environment(name, content, parameters)
-            else:
-                raise ParserException(self.current_token, 'BSLASH not followed by STRING, LCB or RCB')
-        else:
-            raise ParserException(self.current_token, 'unexpected token')
-
-        right = None
-        if self.current_token.type not in [EOF, RCB]:
-            right = self.expression()
-
-        return Expression(left=left, right=right)
-
-    def ast(self):
-        """
-
-        :rtype: Expression
-        """
-
-        node = None
-
-        if self.current_token.type != EOF:
-            node = self.expression()
-
-        self.eat(EOF)
-        return node
 
 
 class NodeVisitor(object):
@@ -438,6 +268,232 @@ class ASTVisitor(NodeVisitor):
         self.visit(node.content, *args, **kwargs)
 
 
+class BadEnvironment(Exception):
+    pass
+
+
+class EnvironmentFix(ASTVisitor):
+    def __init__(self, node):
+        super().__init__(node)
+
+        self.commands = []
+
+    def modify(self):
+        self.commands = []
+        self._start()
+
+        # check if the order make sense, then change for env
+        env_stack = []
+        for name, obj, state in self.commands:
+            if state == 'begin':
+                env_stack.append((name, obj))
+            else:
+                if env_stack[-1][0] != name:
+                    raise BadEnvironment('environment "{}" closed before "{}"'.format(name, env_stack[-1]))
+                begin = env_stack[-1][1]
+                end = obj
+
+                # ok, let's rewire that
+                begin_parent = begin.parent
+                end_parent = end.parent
+                end_grandparent = end_parent.parent
+
+                e = Environment(name, begin_parent.right, parameters=begin.parameters[1:])
+                e.parent = begin_parent
+
+                begin_parent.left = e
+                begin_parent.right = end_parent.right
+
+                if end_parent.right is not None:
+                    begin_parent.right.parent = begin_parent
+
+                end_grandparent.right = None
+
+                del env_stack[-1]
+
+        return self.node
+
+    def visit_command(self, node, *args, **kwargs):
+        """
+
+        :param node: node
+        :type node: Command
+        """
+        if node.name in ['begin', 'end']:
+            if len(node.parameters) == 0:
+                raise BadEnvironment('\\begin but no name')
+            sub = node.parameters[0].element
+            if not isinstance(sub.left, String):
+                print(sub)
+                raise BadEnvironment('name is more complex than a word')
+
+            name = sub.left.content
+            for c in name:
+                if not c.isalpha():
+                    raise BadEnvironment('{} is not a valid name'.format(name))
+
+            self.commands.append((name, node, node.name))
+
+
+class ParserException(Exception):
+    def __init__(self, token, msg):
+        super().__init__('parser error at position {} [{}]: {}'.format(token.position, repr(token), msg))
+        self.token = token
+        self.message = msg
+
+
+class MathParser:
+    """Parser (generate and AST from the tokens).
+
+    :type lexer: MathLexer
+    :param lexer: The lexer
+    """
+
+    def __init__(self, lexer):
+        self.lexer = lexer
+        self.tokenizer = lexer.tokenize()
+        self.current_token = None
+        self.previous_tokens = []
+        self.use_previous = 0
+        self.atom_id = 0
+        self.next()
+
+    def eat(self, token_type):
+        """Consume the token if of the right type
+
+        :param token_type: the token type
+        :type token_type: str
+        :raise ParserException: if not of the correct type
+        """
+        if self.current_token.type == token_type:
+            self.next()
+        else:
+            raise ParserException(self.current_token, 'token must be {}'.format(token_type))
+
+    def next(self):
+        """Get the next token
+        """
+
+        try:
+            if self.current_token is not None:
+                self.previous_tokens.append(self.current_token)
+            self.current_token = next(self.tokenizer)
+        except StopIteration:
+            self.current_token = MathToken(EOF, None)
+
+    def word(self):
+        """Ensure that the current token is a word
+
+        :rtype: str
+        """
+
+        if self.current_token.type != STRING:
+            raise ParserException(self.current_token, 'expected STRING')
+
+        i = 0
+        for c in self.current_token.value:
+            if not c.isalpha():
+                break
+            i += 1
+
+        word = self.current_token.value[0:i]
+        self.current_token.value = self.current_token.value[i:]
+        self.current_token.position += i
+
+        if word == '':
+            raise ParserException(self.current_token, 'empty word')
+
+        if self.current_token.value == '':
+            self.next()
+
+        return word
+
+    def environment_name(self):
+        """
+
+        :rtype: str
+        """
+
+        self.eat(LCB)
+        node = self.word()
+
+        if self.current_token.type == STRING:
+            raise ParserException(self.current_token, 'environment name is not a word')
+
+        self.eat(RCB)
+
+        return node
+
+    def sub_element(self):
+        """element inside curly braces
+
+        :rtype: SubElement
+        """
+        squared = False
+
+        if self.current_token.type == LCB:
+            self.eat(LCB)
+        elif self.current_token.type == LSB:
+            self.eat(LSB)
+            squared = True
+
+        node = self.expression()
+
+        self.eat(RCB if not squared else RSB)
+
+        return SubElement(node, squared)
+
+    def expression(self):
+        """Math
+
+        :rtype: Expression
+        """
+
+        if self.current_token.type == STRING:
+            left = String(self.current_token.value)
+            self.next()
+        elif self.current_token.type in [LCB, LSB]:
+            left = self.sub_element()
+        elif self.current_token.type == BSLASH:
+            self.eat(BSLASH)
+            if self.current_token.type in [BSLASH, LCB, RCB]:  # it was only escaping
+                left = String('\\' + self.current_token.value)
+                self.next()
+            elif self.current_token.type == STRING:  # probably a command
+                name = self.word()
+
+                parameters = []
+                while self.current_token.type in [LCB, LSB]:
+                    parameters.append(self.sub_element())
+
+                left = Command(name, parameters)
+            else:
+                raise ParserException(self.current_token, 'BSLASH not followed by STRING, LCB or RCB')
+        else:
+            raise ParserException(self.current_token, 'unexpected token')
+
+        right = None
+        if self.current_token.type not in [EOF, RCB, RSB]:
+            right = self.expression()
+
+        return Expression(left=left, right=right)
+
+    def ast(self):
+        """
+
+        :rtype: Expression
+        """
+
+        node = None
+
+        if self.current_token.type != EOF:
+            node = self.expression()
+            EnvironmentFix(node).modify()
+
+        self.eat(EOF)
+        return node
+
+
 class Interpreter(NodeVisitor):
     """Give a string representation (the LaTeX code) of the AST
 
@@ -486,7 +542,9 @@ class Interpreter(NodeVisitor):
         :type node: SubElement
         """
 
-        return LCB + self.visit(node.element, *args, **kwargs) + RCB
+        return (LSB if node.squared else LCB) + \
+            self.visit(node.element, *args, **kwargs) + \
+            (RSB if node.squared else RCB)
 
     def visit_command(self, node, *args, **kwargs):
         """
@@ -517,5 +575,4 @@ class Interpreter(NodeVisitor):
             r += self.visit(p, *args, **kwargs)
 
         r += self.visit(node.content, *args, **kwargs)
-
-        return r + LCB + 'end' + RCB
+        return r + BSLASH + 'end' + LCB + node.name + RCB
