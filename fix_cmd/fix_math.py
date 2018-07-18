@@ -6,17 +6,20 @@ class BadCommand(Exception):
         super().__init__('Erreur dans "{}": {}'.format(cmd, err))
 
 
-FIND_ARGS = re.compile('#([0-9])')
+FIND_ARG = re.compile('#([0-9])')
 
 
-class LaTeXCommand:
+class LaTeXCustomCommand:
     def __init__(self, name, nargs, value):
         self.name = name
         self.nargs = nargs
         self.value = value
 
     def __str__(self):
-        return 'command {} [{}]: {}'.format(self.name, self.nargs, self.value)
+        return '<\\newcommand{{{}}}{}{{{}}}>'.format(
+            self.name,
+            '[{}]'.format(self.nargs) if self.nargs != 0 else '',
+            self.value.format(*('#{}'.format(i) for i in range(self.nargs + 1))))
 
     @staticmethod
     def from_string(s):
@@ -24,7 +27,7 @@ class LaTeXCommand:
 
         :param s: definition
         :type s: str
-        :rtype: LaTeXCommand
+        :rtype: LaTeXCustomCommand
         """
         if s[:11] != '\\newcommand':
             raise BadCommand(s, 'ce n\'est pas une définition')
@@ -49,6 +52,9 @@ class LaTeXCommand:
         if name == '' or name == '\\':
             raise BadCommand(s, 'la commande n\'a pas de nom')
 
+        if name[0] != '\\':
+            raise BadCommand(s, 'le nom ne commence pas par "\\"')
+
         nargs = 0
         if s[end] == '[':
             n_end = s.find(']', end)
@@ -70,9 +76,9 @@ class LaTeXCommand:
 
         # treat value
         value = value.replace('{', '{{').replace('}', '}}')
-        value = FIND_ARGS.sub(lambda g: '{{{}}}'.format(g.group(1)), value)
+        value = FIND_ARG.sub(lambda g: '{{{}}}'.format(g.group(1)), value)
 
-        return LaTeXCommand(name, nargs, value)
+        return LaTeXCustomCommand(name, nargs, value)
 
     def use(self, args=()):
         """Use the command and replace by its value
@@ -84,4 +90,4 @@ class LaTeXCommand:
         if len(args) != self.nargs:
             raise ValueError('le nombre d\'argument ne correspond pas à la définition')
 
-        return self.value.format('', *args)
+        return self.value.format(None, *args)
