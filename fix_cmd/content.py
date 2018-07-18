@@ -139,13 +139,13 @@ class Content(Container):
             try:
                 txt = str(archive.read(path), 'utf-8')
             except KeyError:
-                raise BadArchiveError('Cette archive ne contient pas de fichier {}.'.format(path))
+                raise BadArchiveError('Cette archive ne contient pas de fichier "{}".'.format(path))
             except UnicodeDecodeError:
-                raise BadArchiveError('L\'encodage de {} n\'est pas de l\'UTF-8.'.format(path))
+                raise BadArchiveError('L\'encodage de "{}" n\'est pas de l\'UTF-8.'.format(path))
 
             return txt
 
-        zip_archive = zipfile.ZipFile(path, 'a')
+        zip_archive = zipfile.ZipFile(path, 'r')
 
         # is the manifest ok ?
         try:
@@ -156,7 +156,7 @@ class Content(Container):
                 'Une erreur est survenue durant la lecture du manifest, '
                 'vérifiez qu\'il s\'agit de JSON correctement formaté.')
         if 'version' not in manifest or manifest['version'] not in (2, 2.1):
-            raise BadManifestError('Ce n\'est pas un manifest d\'un contenu récent (v2)')
+            raise BadManifestError('Ce n\'est pas un manifest issu d\'un contenu récent (v2.x)')
 
         # extract info
         if 'title' not in manifest:
