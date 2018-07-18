@@ -13,7 +13,7 @@ for pkg in parse_requirements('requirements.txt', session=False):
 
 setup(
     name='zds-fixcmd',
-    packages=[fix_cmd.__name__],
+    packages=['fix_cmd'],
     version=fix_cmd.__version__,
     author=fix_cmd.__author__,
     author_email=fix_cmd.__email__,

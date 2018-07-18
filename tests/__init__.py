@@ -3,8 +3,6 @@ import tempfile
 import shutil
 import os
 
-from fix_cmd import content
-
 
 class ZdsFixCmdTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -41,7 +39,3 @@ class ZdsFixCmdTestCase(unittest.TestCase):
 
         shutil.copy(os.path.join(self.tests_files_directory, path), path_in_temp)
         return path_in_temp
-
-    def test_open_zip(self):
-        path = self.copy_to_temporary_directory('article.zip')
-        content.Content(path)

@@ -1,4 +1,4 @@
-# inspired by https://github.com/zestedesavoir/zds-site/blob/dev/zds/tutorialv2/models/versioned.py
+# Note: inspired by https://github.com/zestedesavoir/zds-site/blob/dev/zds/tutorialv2/
 
 import os
 import zipfile
@@ -98,6 +98,18 @@ class Container(Base):
         self.children.append(child)
         self.children_dict[child.slug] = child
 
+    def get_introduction(self):
+        if self.introduction:
+            return self.top_container()._read(self.introduction)
+        else:
+            return None
+
+    def get_conclusion(self):
+        if self.conclusion:
+            return self.top_container()._read(self.conclusion)
+        else:
+            return None
+
 
 class Extract(Base):
     """
@@ -124,7 +136,8 @@ class Extract(Base):
 
         :rtype: str
         """
-        pass
+
+        return self.parent.top_container()._read(self.text)
 
     def update_text(self, new_text):
         """Update the text in the extract
@@ -133,23 +146,29 @@ class Extract(Base):
         :type new_text: str
         """
 
-        self.text = new_text
+        return self.parent.top_container()._write(self.text, new_text)
 
 
 class BadArchiveError(Exception):
     pass
 
 
-class Content:
+class BadManifestError(Exception):
+    pass
 
-    title = ''
-    slug = ''
-    container = None
+
+class Content(Container):
+
+    type = ''
+
+    manifest = ''
+    archive = None
 
     def __init__(self, path):
-        self._open(path)
+        super().__init__('', '')
+        self.open(path)
 
-    def _open(self, path):
+    def open(self, path):
         """Open a zip file and create a content
 
             :param path: the path
@@ -162,7 +181,7 @@ class Content:
         # is the manifest ok ?
         try:
             manifest = str(zip_archive.read('manifest.json'), 'utf-8')
-            json_handler.loads(manifest)
+            manifest = json_handler.loads(manifest)
         except KeyError:
             raise BadArchiveError('Cette archive ne contient pas de fichier manifest.json.')
         except UnicodeDecodeError:
@@ -171,3 +190,116 @@ class Content:
             raise BadArchiveError(
                 'Une erreur est survenue durant la lecture du manifest, '
                 'vérifiez qu\'il s\'agit de JSON correctement formaté.')
+        if 'version' not in manifest or manifest['version'] not in (2, 2.1):
+            raise BadManifestError('Ce n\'est pas un manifest d\'un contenu récent (v2)')
+
+        # extract infos
+        self.slug = manifest['slug']
+        self.title = manifest['title']
+
+        if 'type' in manifest:
+            self.type = manifest['type']
+        else:
+            self.type = 'TUTORIAL'
+
+        self.manifest = manifest
+
+        # extract containers and extracts:
+        if 'introduction' in manifest:
+            self.introduction = manifest['introduction']
+        if 'conclusion' in manifest:
+            self.conclusion = manifest['conclusion']
+
+        def fill(json_sub, parent):
+            """Create the structure from the manifest
+
+            :param json_sub: subset of the json file
+            :type json_sub: dict
+            :param parent: parent container
+            :type parent: Container
+            """
+            if 'children' in json_sub:  # it is a container
+                for child in json_sub['children']:
+                    if 'title' not in child:
+                        raise BadManifestError('pas de titre pour enfant dans {}'.format(parent.title))
+                    if 'slug' not in child:
+                        raise BadManifestError('pas de slug pour enfant dans {}'.format(parent.title))
+
+                    if child['object'] == 'container':
+                        c = Container(child['title'], child['slug'])
+                        if 'introduction' in child:
+                            c.introduction = child['introduction']
+                        if 'conclusion' in child:
+                            c.conclusion = child['conclusion']
+
+                        fill(child, c)
+                    else:
+                        c = Extract(child['title'], child['slug'])
+                        if 'text' in child:
+                            c.text = child['text']
+
+                    parent.add_child(c)
+
+        fill(manifest, self)
+
+        # check if all files are present in the archive
+        def walk(container):
+            """Get all files that the archive should contain
+
+            :param container: the container
+            :type container: Container
+            """
+            if container.introduction:
+                yield container.introduction
+            if container.conclusion:
+                yield container.conclusion
+
+            for child in container.children:
+                if isinstance(child, Container):
+                    for _y in walk(child):
+                        yield _y
+                else:
+                    yield child.text
+
+        for f in walk(self):
+            try:
+                zip_archive.getinfo(f)
+            except KeyError:
+                BadArchiveError('Le fichier {} n\'existe pas dans l\'archive'.format(f))
+
+        self.archive = zip_archive
+
+    def close(self):
+        self.archive.close()
+        self.archive = None
+
+    def _read(self, path):
+        """Read a file in the archive and get text
+
+        :param path: path in the archive
+        :type path: str
+        :rtype: str
+        """
+        if self.archive is None:
+            raise IOError('closed')
+
+        try:
+            txt = str(self.archive.read(path), 'utf-8')
+        except KeyError:
+            raise BadArchiveError('Cette archive ne contient pas de fichier {}.'.format(path))
+        except UnicodeDecodeError:
+            raise BadArchiveError('L\'encodage de {} n\'est pas de l\'UTF-8.'.format(path))
+
+        return txt
+
+    def _write(self, path, bytes):
+        if self.archive is None:
+            raise IOError('closed')
+
+        self.archive.writestr(self.archive.getinfo(path), bytes)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
