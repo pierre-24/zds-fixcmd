@@ -103,6 +103,23 @@ class MathTestCase(ZdsFixCmdTestCase):
 
         self.assertIsNone(t.right)
 
+        # strings
+        m = '[a+b]_c'
+        ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()
+        self.assertEqual(m, math_parser.Interpreter(ast).interpret())
+
+        t = ast
+        self.assertEqual(type(t.left), math_parser.String)
+        self.assertEqual(t.left.content, '[a+b]')  # string where merged!
+
+        t = t.right
+        self.assertEqual(type(t.left), math_parser.UnaryOperator)
+        self.assertEqual(t.left.operator, '_')
+        self.assertEqual(type(t.left.element), math_parser.String)
+        self.assertEqual(t.left.element.content, 'c')
+
+        self.assertIsNone(t.right)
+
         # environments
         m = '\\begin{a}[1]\\begin{b}[2]\\begin{c}x\\end{c}\\end{b}\\begin{c}y\\end{c}\\end{a}'
         ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()

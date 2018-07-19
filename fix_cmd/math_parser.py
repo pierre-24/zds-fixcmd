@@ -237,7 +237,11 @@ class NodeVisitor(object):
 
 
 class ASTVisitor(NodeVisitor):
-    """Visitor for this AST"""
+    """Visitor for this AST
+
+    :param node: the node to visit
+    :type node: AST
+    """
 
     def __init__(self, node):
         self.node = node
@@ -370,8 +374,8 @@ class EnvironmentFix(ASTVisitor):
                 raise BadEnvironment('\\begin but no name')
             sub = node.parameters[0].element
             if not isinstance(sub.left, String):
-                print(sub)
-                raise BadEnvironment('name is more complex than a word')
+                raise BadEnvironment('name of env is more complex than a word: {}'.format(
+                    Interpreter(sub.left).interpret()))
 
             name = sub.left.content
             for c in name:
@@ -492,7 +496,7 @@ class MathParser:
         """
 
         self.eat(LSB)
-        node = self.expression()
+        node = self.expression(stop_at_RSB=True)
         self.eat(RSB)
 
         return SubElement(node, squared=True)
@@ -557,9 +561,11 @@ class MathParser:
 
         return node
 
-    def expression(self):
+    def expression(self, stop_at_RSB=False):
         """Math
 
+        :param stop_at_RSB: stop right search if RSB is found
+        :type stop_at_RSB: bool
         :rtype: Expression
         """
 
@@ -570,6 +576,7 @@ class MathParser:
             left = self.sub_element()
         elif self.current_token.type in [LSB, RSB]:  # here, it is nothing more than a string
             left = String(self.current_token.value)
+            self.next()
         elif self.current_token.type in [UP, DOWN]:
             left = self.unary_operator()
         elif self.current_token.type == BSLASH:
@@ -578,14 +585,25 @@ class MathParser:
             raise ParserException(self.current_token, 'unexpected token')
 
         right = None
-        if self.current_token.type not in [EOF, RCB, RSB]:
+        stop = [EOF, RCB]
+        if stop_at_RSB:
+            stop.append(RSB)
+
+        if self.current_token.type not in stop:
             right = self.expression()
+
+            # merge strings that follow each other
+            while isinstance(left, String) and isinstance(right.left, String):
+                left.content += right.left.content
+                right = right.right
 
         return Expression(left=left, right=right)
 
-    def ast(self):
+    def ast(self, environments=True):
         """
 
+        :param environments: post-modify AST to get the environments
+        :type environments: bool
         :rtype: Expression
         """
 
@@ -593,7 +611,8 @@ class MathParser:
 
         if self.current_token.type != EOF:
             node = self.expression()
-            EnvironmentFix(node).modify()
+            if environments:
+                EnvironmentFix(node).modify()
 
         self.eat(EOF)
         return node
@@ -603,7 +622,7 @@ class Interpreter(NodeVisitor):
     """Give a string representation (the LaTeX code) of the AST
 
     :param node: the node
-    :type node: Expression
+    :type node: AST
     """
 
     def __init__(self, node):
