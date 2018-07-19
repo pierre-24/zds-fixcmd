@@ -133,3 +133,24 @@ class MathTestCase(ZdsFixCmdTestCase):
         self.assertEqual(t.left.name, 'c')
         self.assertEqual(len(t.left.parameters), 0)
         self.assertEqual(t.left.content.left.content, 'y')
+
+        # imbrication
+        m = '\\begin{a}{\\begin{b}x\\end{b}}y\\end{a}'
+        ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()
+        self.assertEqual(m, math_parser.Interpreter(ast).interpret())
+
+        t = ast
+        self.assertEqual(type(t.left), math_parser.Environment)
+        self.assertEqual(t.left.name, 'a')
+        self.assertEqual(len(t.left.parameters), 1)
+
+        x = t.left.parameters[0].element
+        self.assertEqual(type(x.left), math_parser.Environment)
+        self.assertEqual(x.left.name, 'b')
+        self.assertEqual(len(x.left.parameters), 0)
+
+        x = t.left.content
+        self.assertEqual(type(x.left), math_parser.String)
+        self.assertEqual(x.left.content, 'y')
+
+        self.assertIsNone(t.right)

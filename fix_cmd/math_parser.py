@@ -319,16 +319,20 @@ class EnvironmentFix(ASTVisitor):
 
     def modify(self):
         self.commands = []
-        self._start()
+        self._start(depth=0)
 
         # check if the order make sense, then change for env
         env_stack = []
-        for name, obj, state in self.commands:
+        for name, obj, state, depth in self.commands:
             if state == 'begin':
-                env_stack.append((name, obj))
+                env_stack.append((name, obj, depth))
             else:
                 if env_stack[-1][0] != name:
                     raise BadEnvironment('environment "{}" closed before "{}"'.format(name, env_stack[-1]))
+
+                if depth != env_stack[-1][2]:
+                    raise BadEnvironment('environment "{}" is not closed in the right context'.format(name))
+
                 begin = env_stack[-1][1]
                 end = obj
 
@@ -356,7 +360,7 @@ class EnvironmentFix(ASTVisitor):
         return self.node
 
     def visit_command(self, node, *args, **kwargs):
-        """
+        """Detect
 
         :param node: node
         :type node: Command
@@ -374,7 +378,20 @@ class EnvironmentFix(ASTVisitor):
                 if not c.isalpha():
                     raise BadEnvironment('{} is not a valid name'.format(name))
 
-            self.commands.append((name, node, node.name))
+            self.commands.append((name, node, node.name, kwargs.get('depth')))
+
+        kwargs['depth'] = kwargs.get('depth') + 1
+        super().visit_command(node, *args, **kwargs)
+
+    def visit_subelement(self, node, *args, **kwargs):
+        """Rewritten to increase depth
+
+        :param node: node
+        :type node: SubElement
+        """
+
+        kwargs['depth'] = kwargs.get('depth') + 1
+        super().visit_subelement(node, *args, **kwargs)
 
 
 class ParserException(Exception):
@@ -430,7 +447,7 @@ class MathParser:
         """
 
         if self.current_token.type != STRING:
-            raise ParserException(self.current_token, 'expected STRING')
+            raise ParserException(self.current_token, 'expected STRING in one_char')
 
         c = self.current_token.value[0]
         self.current_token.value = self.current_token.value[1:]
@@ -448,7 +465,7 @@ class MathParser:
         """
 
         if self.current_token.type != STRING:
-            raise ParserException(self.current_token, 'expected STRING')
+            raise ParserException(self.current_token, 'expected STRING in word')
 
         i = 0
         for c in self.current_token.value:
@@ -467,22 +484,6 @@ class MathParser:
             self.next()
 
         return word
-
-    def environment_name(self):
-        """
-
-        :rtype: str
-        """
-
-        self.eat(LCB)
-        node = self.word()
-
-        if self.current_token.type == STRING:
-            raise ParserException(self.current_token, 'environment name is not a word')
-
-        self.eat(RCB)
-
-        return node
 
     def squared_parameter(self):
         """element inside squared brackets
@@ -524,7 +525,7 @@ class MathParser:
         elif self.current_token.type == BSLASH:
             content = self.command_or_escaped()
         else:
-            raise ParserException(self.current_token, 'expected STRING, LCB or BSLASH for unary operator')
+            raise ParserException(self.current_token, 'expected STRING, LCB or BSLASH in unary operator')
 
         return UnaryOperator(operator, content)
 
