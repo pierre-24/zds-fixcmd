@@ -1,5 +1,5 @@
 """
-Simple parser for LaTeX math expression (capture commands and environment).
+Simple parser for LaTeX math expression (capture commands).
 
 Grammar:
 
@@ -8,15 +8,24 @@ BSLASH := '\' ;
 LCB := '{' ;
 RCB := '}' ;
 LSB := '[' ;
-RSB = ']' ;
+RSB := ']' ;
+DOWN := '_' ;
+UP := '^' ;
 
+escaped_char := BSLASH (BSLASH | LCB | LSB) ;
+char_m := (CHAR \ { BSLASH | LCB | RCB | UP | DOWN }) | escaped ;
 word := [a-zA-Z]* ;
-string := CHAR* ;
+string := char_m* ;
 
 spaces := ',' | '!' | '>' | ';' | ':' ;
 
-sub_element := (LCB expression RCB) | (LSB expression RSB) ;
-command := BSLASH (word sub_element*) | spaces ;
+sub_element := LCB expression RCB ;
+squared_parameter := LSB expression RSB ;
+
+command := BSLASH ((word (sub_element | squared_parameter)*) | spaces) ;
+unary_operator := (DOWN | UP) ol_expression ;
+
+ol_expression := char_m | command | sub_element ;
 expression := (string | command | sub_element) expression? ;
 
 ast := expression? EOF ;
@@ -25,7 +34,7 @@ ast := expression? EOF ;
 Environment are detected latter on.
 """
 
-BSLASH, LCB, RCB, LSB, RSB, EOF = ('\\', '{', '}', '[', ']', 'EOF')
+BSLASH, LCB, RCB, LSB, RSB, DOWN, UP, EOF = ('\\', '{', '}', '[', ']', '_', '^', 'EOF')
 STRING = 'STRING'
 SYMBOL = 'SYMBOL'
 
@@ -37,6 +46,8 @@ SYMBOLS_TR = {
     '}': RCB,
     '[': LSB,
     ']': RSB,
+    '_': DOWN,
+    '^': UP
 }
 
 
@@ -156,6 +167,22 @@ class SubElement(AST):
         self.element.parent = self
 
 
+class UnaryOperator(AST):
+    """Unary operator
+
+    :param element: the element
+    :type element: SubElement|Command|String
+    :param operator: the operator
+    :type operator: str
+    """
+
+    def __init__(self, operator, element):
+        super().__init__()
+        self.operator = operator
+        self.element = element
+        self.element.parent = self
+
+
 class Command(AST):
     """Command
 
@@ -270,6 +297,15 @@ class ASTVisitor(NodeVisitor):
 
         self.visit(node.content, *args, **kwargs)
 
+    def visit_unaryoperator(self, node, *args, **kwargs):
+        """
+
+        :param node: node
+        :type node: UnaryOperator
+        """
+
+        self.visit(node.element, *args, **kwargs)
+
 
 class BadEnvironment(Exception):
     pass
@@ -313,6 +349,9 @@ class EnvironmentFix(ASTVisitor):
                 end_grandparent.right = None
 
                 del env_stack[-1]
+
+        if len(env_stack) != 0:
+            raise BadEnvironment('env {} not closed'.format(', '.join(a[0] for a in env_stack)))
 
         return self.node
 
@@ -384,6 +423,24 @@ class MathParser:
         except StopIteration:
             self.current_token = MathToken(EOF, None)
 
+    def one_char(self):
+        """get only one char
+
+        :return:
+        """
+
+        if self.current_token.type != STRING:
+            raise ParserException(self.current_token, 'expected STRING')
+
+        c = self.current_token.value[0]
+        self.current_token.value = self.current_token.value[1:]
+        self.current_token.position += 1
+
+        if self.current_token.value == '':
+            self.next()
+
+        return c
+
     def word(self):
         """Ensure that the current token is a word
 
@@ -427,24 +484,77 @@ class MathParser:
 
         return node
 
+    def squared_parameter(self):
+        """element inside squared brackets
+
+        :rtype: SubElement
+        """
+
+        self.eat(LSB)
+        node = self.expression()
+        self.eat(RSB)
+
+        return SubElement(node, squared=True)
+
     def sub_element(self):
         """element inside curly braces
 
         :rtype: SubElement
         """
-        squared = False
 
-        if self.current_token.type == LCB:
-            self.eat(LCB)
-        elif self.current_token.type == LSB:
-            self.eat(LSB)
-            squared = True
-
+        self.eat(LCB)
         node = self.expression()
+        self.eat(RCB)
 
-        self.eat(RCB if not squared else RSB)
+        return SubElement(node)
 
-        return SubElement(node, squared)
+    def unary_operator(self):
+        """Unary operator
+
+        :rtype: UnaryOperator
+        """
+
+        operator = self.current_token.value
+        self.next()
+
+        if self.current_token.type == STRING:  # only catch the first character
+            content = String(self.one_char())
+        elif self.current_token.type == LCB:
+            content = self.sub_element()
+        elif self.current_token.type == BSLASH:
+            content = self.command_or_escaped()
+        else:
+            raise ParserException(self.current_token, 'expected STRING, LCB or BSLASH for unary operator')
+
+        return UnaryOperator(operator, content)
+
+    def command_or_escaped(self):
+        """
+
+        :rtype: Command|String
+        """
+
+        self.eat(BSLASH)
+
+        if self.current_token.type in [BSLASH, LCB, RCB]:  # it was only escaping
+            node = String('\\' + self.current_token.value)
+            self.next()
+        elif self.current_token.type == STRING:  # command
+            parameters = []
+            if self.current_token.value[0] in SPACES:  # it is a space command
+                name = self.one_char()
+            else:
+                name = self.word()
+                while self.current_token.type in [LCB, LSB]:
+                    if self.current_token.type == LCB:
+                        parameters.append(self.sub_element())
+                    else:
+                        parameters.append(self.squared_parameter())
+            node = Command(name, parameters)
+        else:
+            raise ParserException(self.current_token, 'BSLASH not followed by STRING, LCB or RCB')
+
+        return node
 
     def expression(self):
         """Math
@@ -455,31 +565,14 @@ class MathParser:
         if self.current_token.type == STRING:
             left = String(self.current_token.value)
             self.next()
-        elif self.current_token.type in [LCB, LSB]:
+        elif self.current_token.type == LCB:
             left = self.sub_element()
+        elif self.current_token.type in [LSB, RSB]:  # here, it is nothing more than a string
+            left = String(self.current_token.value)
+        elif self.current_token.type in [UP, DOWN]:
+            left = self.unary_operator()
         elif self.current_token.type == BSLASH:
-            self.eat(BSLASH)
-            if self.current_token.type in [BSLASH, LCB, RCB]:  # it was only escaping
-                left = String('\\' + self.current_token.value)
-                self.next()
-            elif self.current_token.type == STRING:  # probably a command
-                parameters = []
-
-                if self.current_token.value[0] in SPACES:  # it is a space command
-                    name = self.current_token.value[0]
-                    self.current_token.value = self.current_token.value[1:]
-                    self.current_token.position += 1
-
-                    if self.current_token.value == '':
-                        self.next()
-                else:
-                    name = self.word()
-                    while self.current_token.type in [LCB, LSB]:
-                        parameters.append(self.sub_element())
-
-                left = Command(name, parameters)
-            else:
-                raise ParserException(self.current_token, 'BSLASH not followed by STRING, LCB or RCB')
+            left = self.command_or_escaped()
         else:
             raise ParserException(self.current_token, 'unexpected token')
 
@@ -587,3 +680,13 @@ class Interpreter(NodeVisitor):
 
         r += self.visit(node.content, *args, **kwargs)
         return r + BSLASH + 'end' + LCB + node.name + RCB
+
+    def visit_unaryoperator(self, node, *args, **kwargs):
+        """
+
+        :param node: node
+        :type node: UnaryOperator
+        :rtype: str
+        """
+
+        return node.operator + self.visit(node.element, *args, **kwargs)

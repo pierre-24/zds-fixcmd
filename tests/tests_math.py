@@ -31,6 +31,16 @@ class MathTestCase(ZdsFixCmdTestCase):
                 T(math_parser.STRING, 'b'),
                 T(math_parser.RCB, '}'),
                 T(math_parser.STRING, '||+ 1')
+            ]),
+            ('\\int_a^b x\\,dx', [
+                T(math_parser.BSLASH, '\\'),
+                T(math_parser.STRING, 'int'),
+                T(math_parser.DOWN, '_'),
+                T(math_parser.STRING, 'a'),
+                T(math_parser.UP, '^'),
+                T(math_parser.STRING, 'b x'),
+                T(math_parser.BSLASH, '\\'),
+                T(math_parser.STRING, ',dx'),
             ])
         ]
 
@@ -58,23 +68,19 @@ class MathTestCase(ZdsFixCmdTestCase):
         self.assertEqual(len(t.left.parameters), 0)
 
         t = t.right
-        self.assertEqual(type(t.left), math_parser.String)
-        self.assertEqual(t.left.content, '_')
+        self.assertEqual(type(t.left), math_parser.UnaryOperator)
+        self.assertEqual(t.left.operator, '_')
+        self.assertEqual(type(t.left.element), math_parser.SubElement)
+        self.assertEqual(type(t.left.element.element), math_parser.Expression)
+        self.assertEqual(type(t.left.element.element.left), math_parser.String)
+        self.assertEqual(t.left.element.element.left.content, 'a')
 
         t = t.right
-        self.assertEqual(type(t.left), math_parser.SubElement)
-        self.assertEqual(type(t.left.element), math_parser.Expression)
-        self.assertEqual(type(t.left.element.left), math_parser.String)
-        self.assertEqual(t.left.element.left.content, 'a')
-
-        t = t.right
-        self.assertEqual(type(t.left), math_parser.String)
-        self.assertEqual(t.left.content, '^')
-
-        t = t.right
-        self.assertEqual(type(t.left), math_parser.Command)
-        self.assertEqual(t.left.name, 'infty')
-        self.assertEqual(len(t.left.parameters), 0)
+        self.assertEqual(type(t.left), math_parser.UnaryOperator)
+        self.assertEqual(t.left.operator, '^')
+        self.assertEqual(type(t.left.element), math_parser.Command)
+        self.assertEqual(t.left.element.name, 'infty')
+        self.assertEqual(len(t.left.element.parameters), 0)
 
         t = t.right
         self.assertEqual(type(t.left), math_parser.Command)
