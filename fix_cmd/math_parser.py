@@ -13,20 +13,23 @@ RSB = ']' ;
 word := [a-zA-Z]* ;
 string := CHAR* ;
 
+spaces := ',' | '!' | '>' | ';' | ':' ;
+
 sub_element := (LCB expression RCB) | (LSB expression RSB) ;
-command := BSLASH word sub_element* ;
-environment := BSLASH "begin" subelement* expression BSLASH "end" LCB word RCB ;
-expression := (string | command | environment | sub_element) expression? ;
+command := BSLASH (word sub_element*) | spaces ;
+expression := (string | command | sub_element) expression? ;
 
 ast := expression? EOF ;
 ```
 
-Enough for the current needs.
+Environment are detected latter on.
 """
 
 BSLASH, LCB, RCB, LSB, RSB, EOF = ('\\', '{', '}', '[', ']', 'EOF')
 STRING = 'STRING'
 SYMBOL = 'SYMBOL'
+
+SPACES = [',', '!', '>', ';', ':']
 
 SYMBOLS_TR = {
     '\\': BSLASH,
@@ -460,11 +463,19 @@ class MathParser:
                 left = String('\\' + self.current_token.value)
                 self.next()
             elif self.current_token.type == STRING:  # probably a command
-                name = self.word()
-
                 parameters = []
-                while self.current_token.type in [LCB, LSB]:
-                    parameters.append(self.sub_element())
+
+                if self.current_token.value[0] in SPACES:  # it is a space command
+                    name = self.current_token.value[0]
+                    self.current_token.value = self.current_token.value[1:]
+                    self.current_token.position += 1
+
+                    if self.current_token.value == '':
+                        self.next()
+                else:
+                    name = self.word()
+                    while self.current_token.type in [LCB, LSB]:
+                        parameters.append(self.sub_element())
 
                 left = Command(name, parameters)
             else:

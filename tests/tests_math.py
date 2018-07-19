@@ -48,7 +48,7 @@ class MathTestCase(ZdsFixCmdTestCase):
         """Test the parsing of a math expression"""
 
         # base
-        m = '\\int_{a}^\\infty\\frac{1}{x}\\\\,dx'
+        m = '\\int_{a}^\\infty\\frac{1}{x}\\,dx'
         ast = math_parser.MathParser(math_parser.MathLexer(m)).ast()
         self.assertEqual(m, math_parser.Interpreter(ast).interpret())
 
@@ -87,12 +87,13 @@ class MathTestCase(ZdsFixCmdTestCase):
         self.assertEqual(t.left.parameters[1].element.left.content, 'x')
 
         t = t.right
-        self.assertEqual(type(t.left), math_parser.String)
-        self.assertEqual(t.left.content, '\\\\')
+        self.assertEqual(type(t.left), math_parser.Command)
+        self.assertEqual(t.left.name, ',')
+        self.assertEqual(len(t.left.parameters), 0)
 
         t = t.right
         self.assertEqual(type(t.left), math_parser.String)
-        self.assertEqual(t.left.content, ',dx')
+        self.assertEqual(t.left.content, 'dx')
 
         self.assertIsNone(t.right)
 
