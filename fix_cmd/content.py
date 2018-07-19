@@ -110,9 +110,7 @@ class BadManifestError(Exception):
 class Content(Container):
 
     type = ''
-
     manifest = ''
-    archive = None
 
     def __init__(self, title, slug=''):
         super().__init__(title, slug, None)
