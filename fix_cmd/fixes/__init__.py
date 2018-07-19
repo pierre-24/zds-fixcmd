@@ -8,12 +8,13 @@ FIND_MATH = re.compile('\\$(\\$)?(.*?)(\\$)?\\$', re.DOTALL)
 class MathExpression:
     def __init__(self, expression, line=True):
         self.base_expression = expression
-        self.ast = math_parser.MathParser(math_parser.MathLexer(expression)).ast()
+        self.ast = math_parser.MathParser.parse(expression)
         self.line = line
 
 
 class FixError(Exception):
-    pass
+    def __init__(self, path, err):
+        super().__init__('{}: {}'.format(path, err))
 
 
 def dummy(math_expr, container, path, *args, **kwargs):
@@ -32,14 +33,10 @@ def dummy(math_expr, container, path, *args, **kwargs):
 
 class FixableContent(content.Content):
 
-    fixes = [
-        dummy,
-    ]
-
-    def __init__(self, title, slug):
+    def __init__(self, title, slug, fixes=None):
         super().__init__(title, slug)
 
-        self.data = {}
+        self.fixes = fixes if fixes is not None else [dummy]
 
     def walk_containers(self, container=None):
         """Walk the different containers
@@ -98,8 +95,7 @@ class FixableContent(content.Content):
         """
 
         if groups.group(1) != groups.group(3):
-            raise FixError(
-                'Le début et la fin de l\'expression ne correspondent pas dans {}'.format(path))
+            raise FixError(path, 'Le début et la fin de l\'expression ne correspondent pas')
 
         e = MathExpression(groups.group(2), line=groups.group(1) == '')
 
@@ -110,19 +106,78 @@ class FixableContent(content.Content):
         return sep + math_parser.Interpreter(e.ast).interpret() + sep
 
     @staticmethod
-    def extract(path):
+    def extract(path, fixes=None):
         """Extract a content
 
         :param path: the path
         :type path: str
+        :param fixes: the fixes to apply
+        :type fixes: list
         :rtype: FixableContent
         """
         x = content.Content.extract(path)
 
-        y = FixableContent(x.title, x.slug)
+        y = FixableContent(x.title, x.slug, fixes=fixes)
         y.type = x.type
         y.manifest = x.manifest
         y.children = x.children
         y.children_dict = x.children_dict
 
         return y
+
+
+class FixContext:
+    """Basic context"""
+
+    def __init__(self, container):
+        self.container = container
+        self.data = None
+
+
+class Fix:
+    """A fix.
+
+    The context is container based.
+    """
+    def __init__(self):
+        self.context = {}
+
+    def create_context(self, container, *args, **kwargs):
+        """Context object for a given container
+
+        :param container: the container
+        :type container: fix_cmd.content.Container
+        :rtype: FixContext
+        """
+
+        return FixContext(container)
+
+    def fix(self, math_expr, context, path, *args, **kwargs):
+        """The actual fix
+
+        :param context: the context
+        :param math_expr: the math expression to fix
+        :type math_expr: fix_cmd.fixes.MathExpression
+        :param path: the file from where the math expression is issued
+        :type path: str
+        """
+        raise NotImplementedError()
+
+    def __call__(self, math_expr, container, path, *args, **kwargs):
+        """
+
+        :param obj: the content
+        :type obj: fix_cmd.fixes.FixableContent
+        :param math_expr: the math expression to fix
+        :type math_expr: fix_cmd.fixes.MathExpression
+        :param container: the container
+        :type container: fix_cmd.content.Container
+        :param path: the file from where the math expression is issued
+        :type path: str
+        """
+
+        if container.slug not in self.context:
+            self.context[container.slug] = self.create_context(container, *args, **kwargs)
+
+        context = self.context[container.slug]
+        return self.fix(math_expr, context, path, *args, **kwargs)

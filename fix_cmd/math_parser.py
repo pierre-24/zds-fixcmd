@@ -496,7 +496,7 @@ class MathParser:
         """
 
         self.eat(LSB)
-        node = self.expression(stop_at_RSB=True)
+        node = self.expression(additional_stoppers=[RSB])
         self.eat(RSB)
 
         return SubElement(node, squared=True)
@@ -508,7 +508,7 @@ class MathParser:
         """
 
         self.eat(LCB)
-        node = self.expression()
+        node = self.expression(additional_stoppers=[RCB])
         self.eat(RCB)
 
         return SubElement(node)
@@ -561,11 +561,11 @@ class MathParser:
 
         return node
 
-    def expression(self, stop_at_RSB=False):
+    def expression(self, additional_stoppers=None):
         """Math
 
-        :param stop_at_RSB: stop right search if RSB is found
-        :type stop_at_RSB: bool
+        :param additional_stoppers: stop right search (if sub element context)
+        :type additional_stoppers: list
         :rtype: Expression
         """
 
@@ -585,12 +585,12 @@ class MathParser:
             raise ParserException(self.current_token, 'unexpected token')
 
         right = None
-        stop = [EOF, RCB]
-        if stop_at_RSB:
-            stop.append(RSB)
+        stop = [EOF]
+        if additional_stoppers:
+            stop.extend(additional_stoppers)
 
         if self.current_token.type not in stop:
-            right = self.expression()
+            right = self.expression(additional_stoppers=additional_stoppers)
 
             # merge strings that follow each other
             while isinstance(left, String) and right is not None and isinstance(right.left, String):
@@ -616,6 +616,18 @@ class MathParser:
 
         self.eat(EOF)
         return node
+
+    @staticmethod
+    def parse(s, environments=True):
+        """Parse a string
+
+        :param environments: post-modify AST to get the environments
+        :type environments: bool
+        :param s: string
+        :type s: str
+        :rtype: Expression
+        """
+        return MathParser(MathLexer(s)).ast(environments)
 
 
 class Interpreter(NodeVisitor):
@@ -710,3 +722,44 @@ class Interpreter(NodeVisitor):
         """
 
         return node.operator + self.visit(node.element, *args, **kwargs)
+
+
+def delete_ast_node(node):
+    """
+    If deletion of node "n":
+
+    A          A             B
+    |\         |\            |\
+    a \        a \           c \
+       B    →     C     or     D
+       |\         |\
+       n \        c \      (if not A)
+          C          D
+          |\
+          c \    (if A)
+            D
+
+    :param node: node to delete
+    :type node: AST
+    """
+
+    if isinstance(node, Expression):
+        raise Exception('cannot delete Expression with this function')
+
+    B = node.parent
+    A = node.parent.parent
+    C = B.right
+
+    if A is None:  # then B becomes C
+        if C is not None:
+            B.left = C.left
+            B.right = C.right
+            if B.right is not None:
+                B.right.parent = B
+        else:  # then B will only contain an empty string
+            B.left = String('')
+            B.left.parent = B
+    else:
+        A.right = C
+        if C is not None:
+            C.parent = A
