@@ -54,17 +54,23 @@ class FixTestCase(ZdsFixCmdTestCase):
 
 
 class NewCommandTestCase(ZdsFixCmdTestCase):
-    def test_base(self):
-        """Test the principle"""
 
-        text = '\\newcommand{\\test}[1]{\\a{#1}}\\test{x}'
+    def check(self, expr, expected):
         context = fix_newcommand.FixNewCommandContext(None)
-        m = fixes.MathExpression(text)
+        m = fixes.MathExpression(expr)
 
         f = fix_newcommand.FixNewCommand()
         f.fix(m, context, 'none')
 
-        print(math_parser.Interpreter(m.ast).interpret())
+        self.assertEqual(math_parser.Interpreter(m.ast).interpret(), expected)
+
+    def test_base(self):
+        """Test the principle"""
+
+        self.check('\\newcommand{\\test}{\\infty}\\test', '\\infty')
+        self.check('\\newcommand{\\test}[1]{\\a{<#1>}{#1}}\\test{x}', '\\a{<x>}{x}')
+        self.check('\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{x}\\b{y}', '\\u{x}\\v{y}')
+        self.check('x\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{\\b{y}}', 'x\\u{\\v{y}}')
 
     def test_fix(self):
         """Test the fix on content"""
@@ -73,4 +79,12 @@ class NewCommandTestCase(ZdsFixCmdTestCase):
 
         f = fix_newcommand.FixNewCommand()
         content = fixes.FixableContent.extract(path, fixes=[f])
+
+        extract = content.children_dict['principe-physique']
+        self.assertEqual(extract.text_value.count('\deriv'), 3)
+        self.assertEqual(extract.text_value.count('\integ'), 5)
+
         content.fix_containers()
+
+        self.assertEqual(extract.text_value.count('\deriv'), 0)
+        self.assertEqual(extract.text_value.count('\integ'), 0)

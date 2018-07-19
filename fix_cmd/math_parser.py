@@ -728,38 +728,89 @@ def delete_ast_node(node):
     """
     If deletion of node "n":
 
-    A          A             B
-    |\         |\            |\
-    a \        a \           c \
-       B    →     C     or     D
+    A          A
+    |\         |\
+    a \        a \
+       N    →     N (N remains!)
        |\         |\
-       n \        c \      (if not A)
+       n \        c \
           C          D
           |\
           c \    (if A)
-            D
+             D
 
     :param node: node to delete
     :type node: AST
     """
 
     if isinstance(node, Expression):
-        raise Exception('cannot delete Expression with this function')
-
-    B = node.parent
-    A = node.parent.parent
-    C = B.right
-
-    if A is None:  # then B becomes C
-        if C is not None:
-            B.left = C.left
-            B.right = C.right
-            if B.right is not None:
-                B.right.parent = B
-        else:  # then B will only contain an empty string
-            B.left = String('')
-            B.left.parent = B
+        N = node
+        C = node.right
     else:
-        A.right = C
+        N = node.parent
+        C = N.right
+
+    if C is not None:
+        N.left = C.left
+        N.left.parent = N
+        N.right = C.right
+        if N.right is not None:
+            N.right.parent = N
+    else:  # then B will only contain an empty string
+        N.left = String('')
+        N.left.parent = N
+
+
+def replace_ast_node(node, other):
+    """
+    If insertion of X  instead of N
+                    |\            |
+                    x \           n
+                       Y
+                       |
+                       y
+
+    A          A
+    |\         |\
+    a \        a \
+       N    →     N   (N remains!)
+       |\         |\
+       n \        x \
+          C          Y
+                     |\
+                     y \
+                        C
+
+    :param node: node to delete
+    :type node: AST
+    :param other: node insert instead
+    :type other: AST
+    """
+
+    if isinstance(node, Expression) and isinstance(other, Expression):
+        N = node
+        C = node.right
+        X = other
+        Y = other
+
+        while Y.right is not None:
+            Y = Y.right
+
+        N.left = X.left
+        N.left.parent = N
+        N.right = X.right
+        if N.right is not None:
+            N.right.parent = N
+        if id(X) == id(Y):
+            Y = N
+
         if C is not None:
-            C.parent = A
+            Y.right = C
+            Y.right.parent = Y
+
+    elif not isinstance(node, Expression) and not isinstance(other, Expression):
+        parent = node.parent
+        parent.left = other
+        other.parent = parent
+    else:
+        raise Exception('?')
