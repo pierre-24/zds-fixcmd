@@ -31,7 +31,7 @@ expression := (string | command | sub_element) expression? ;
 ast := expression? EOF ;
 ```
 
-Environment are detected latter on.
+Environments are detected latter on.
 """
 
 BSLASH, LCB, RCB, LSB, RSB, DOWN, UP, EOF = ('\\', '{', '}', '[', ']', '_', '^', 'EOF')
@@ -593,7 +593,7 @@ class MathParser:
             right = self.expression()
 
             # merge strings that follow each other
-            while isinstance(left, String) and isinstance(right.left, String):
+            while isinstance(left, String) and right is not None and isinstance(right.left, String):
                 left.content += right.left.content
                 right = right.right
 
