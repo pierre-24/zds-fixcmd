@@ -45,7 +45,7 @@ class ZdsFixCmdTestCase(unittest.TestCase):
     def match_expected(self, name, content):
 
         n = inspect.stack()[1][3]
-        path = os.path.join(os.path.dirname(__file__), 'expected', n + '.' + name + '.expected')
+        path = os.path.join(os.path.dirname(__file__), 'expected', name + '.' + n + '.expected')
 
         if not os.path.exists(path):
             raise Exception('file {} does not exists'.format(path))

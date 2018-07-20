@@ -28,7 +28,7 @@ class FixTestCase(ZdsFixCmdTestCase):
         self.assertEqual(content.children[0].text_value.count('$a$'), 6)
 
         extract = content.children_dict['principe-physique']
-        self.match_expected('principe-physique', extract.text_value)
+        self.match_expected('fix.principe-physique', extract.text_value)
 
         self.assertEqual(content.children[1].text_value.count('$$a$$'), 2)
         self.assertEqual(content.children[1].text_value.count('$a$'), 6)
@@ -86,7 +86,7 @@ class NewCommandTestCase(ZdsFixCmdTestCase):
         content.fix()
 
         extract = content.children_dict['principe-physique']
-        self.match_expected('principe-physique', extract.text_value)
+        self.match_expected('newcommand.principe-physique', extract.text_value)
 
     def test_fix_tutorial(self):
         """Test the fix on content"""
@@ -98,7 +98,7 @@ class NewCommandTestCase(ZdsFixCmdTestCase):
         content.fix()
 
         extract = content.children_dict['et-encore-un'].children_dict['du-binaire']
-        self.match_expected('du-binaire', extract.text_value)
+        self.match_expected('newcommand.du-binaire', extract.text_value)
 
         extract = content.children_dict['test-aussi'].children_dict['une-section-qui-utilise-la-commande']
-        self.match_expected('une-section-qui-utilise-la-commande', extract.text_value)
+        self.match_expected('newcommand.une-section-qui-utilise-la-commande', extract.text_value)
