@@ -95,7 +95,9 @@ class FixableContent(content.Content):
         """
 
         if groups.group(1) != groups.group(3):
-            raise FixError(path, 'Le début et la fin de l\'expression ne correspondent pas')
+            raise FixError(
+                path, 'begin and end of math expression are not the same (${}!=${})'.format(
+                    groups.group(1), groups.group(3)))
 
         e = MathExpression(groups.group(2), line=groups.group(1) == '')
 

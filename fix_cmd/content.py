@@ -80,7 +80,7 @@ class Container(Base):
         """
 
         if not self.can_add_children(Extract if type(child) is Extract else Container):
-            raise Exception('Impossible d\'ajouter "{}" au conteneur "{}"'.format(child.title, self.title))
+            raise BadManifestError('forbidden to add "{}" to container "{}"'.format(child.title, self.title))
 
         child.parent = self
         self.children.append(child)
@@ -137,9 +137,9 @@ class Content(Container):
             try:
                 txt = str(archive.read(path), 'utf-8')
             except KeyError:
-                raise BadArchiveError('Cette archive ne contient pas de fichier "{}".'.format(path))
+                raise BadArchiveError('{}: no such file in archive'.format(path))
             except UnicodeDecodeError:
-                raise BadArchiveError('L\'encodage de "{}" n\'est pas de l\'UTF-8.'.format(path))
+                raise BadArchiveError('{}: not UTF-8'.format(path))
 
             return txt
 
@@ -150,17 +150,15 @@ class Content(Container):
             manifest = read_in_zip(zip_archive, 'manifest.json')
             manifest = json_handler.loads(manifest)
         except ValueError:
-            raise BadArchiveError(
-                'Une erreur est survenue durant la lecture du manifest, '
-                'vérifiez qu\'il s\'agit de JSON correctement formaté.')
+            raise BadArchiveError('the manifest is not in the JSON format (or there is an error)')
         if 'version' not in manifest or manifest['version'] not in (2, 2.1):
-            raise BadManifestError('Ce n\'est pas un manifest issu d\'un contenu récent (v2.x)')
+            raise BadManifestError('it is an old or weird manifest (not v2.0 or v2.1)')
 
         # extract info
         if 'title' not in manifest:
-            raise BadManifestError('Pas de titre dans le manifest')
+            raise BadManifestError('no title in manifest')
         if 'slug' not in manifest:
-            raise BadManifestError('Pas de slug dans le manifest')
+            raise BadManifestError('no slug in manifest')
 
         content = Content(manifest['title'], manifest['slug'])
 
@@ -188,9 +186,9 @@ class Content(Container):
             if 'children' in json_sub:  # it is a container
                 for child in json_sub['children']:
                     if 'title' not in child:
-                        raise BadManifestError('pas de titre pour enfant dans {}'.format(parent.title))
+                        raise BadManifestError('no title for a child in "{}"'.format(parent.title))
                     if 'slug' not in child:
-                        raise BadManifestError('pas de slug pour enfant dans {}'.format(parent.title))
+                        raise BadManifestError('no slug for a child in "{}"'.format(parent.title))
 
                     if child['object'] == 'container':
                         c = Container(child['title'], child['slug'])

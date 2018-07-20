@@ -7,12 +7,17 @@ from fix_cmd import fixes, math_parser
 FIND_PARAM = re.compile('#([0-9])')
 
 
+class NCError(Exception):
+    def __init__(self, cmd, err):
+        super().__init__('\\{}: {}'.format(cmd, err))
+
+
 class ReplaceParameters(math_parser.ASTVisitor):
     def __init__(self, container):
         super().__init__(container)
 
-    def replace(self, args):
-        self._start(args=args)
+    def replace(self, cmd, args):
+        self._start(cmd=cmd, args=args)
 
     def visit_string(self, node, *args, **kwargs):
         """
@@ -26,10 +31,13 @@ class ReplaceParameters(math_parser.ASTVisitor):
         splits = []
         content = node.content
         args = kwargs.get('args')
+        cmd = kwargs.get('cmd')
 
         b = 0
         found = False
         for i in FIND_PARAM.finditer(node.content):
+            if int(i.group(1)) > len(args):
+                raise NCError(cmd, '{} args expected, but #{}'.format(len(args), i.group(1)))
             found = True
             n = i.span()[0]
             if n - b > 0:
@@ -62,23 +70,24 @@ class CommandDefinition:
     def __init__(self, command):
 
         if len(command.parameters) not in [2, 3]:
-            raise Exception('\\newcommand prend 2 ou 3 paramètres')
+            raise NCError('newcommand', '2 or 3 parameters expected')
 
         if not isinstance(command.parameters[0].element.left, math_parser.Command):
-            raise Exception('le premier paramètre de \\newcommand devrait commencer par "\\"')
+            raise NCError('newcommand', 'first parameter should start with "\\"')
 
         self.name = command.parameters[0].element.left.name
 
         self.nargs = 0
         if len(command.parameters) == 3:
             if not command.parameters[1].squared:
-                raise Exception('le second paramètre de \\newcommand{{{}}} devrait être [x]'.format(self.name))
+                raise NCError(
+                    'newcommand\\{}'.format(self.name), 'second parameter should be between square parentheses')
             if not isinstance(command.parameters[1].element.left, math_parser.String):
-                raise Exception('le second paramètre de \\newcommand{{{}}} n\'est pas un nombre'.format(self.name))
+                raise NCError('newcommand\\{}'.format(self.name), 'second parameter should be int')
             try:
                 self.nargs = int(command.parameters[1].element.left.content)
             except ValueError:
-                raise Exception('le second paramètre de \\newcommand{{{}}} n\'est pas un nombre'.format(self.name))
+                raise NCError('newcommand\\{}'.format(self.name), 'second parameter is not int'.format(self.name))
 
             self.replace_with = command.parameters[2].element
         else:
@@ -93,7 +102,7 @@ class CommandDefinition:
         """
 
         n = copy.deepcopy(self.replace_with)
-        ReplaceParameters(n).replace(args)
+        ReplaceParameters(n).replace(self.name, args)
 
         return n
 
@@ -105,8 +114,9 @@ class CommandDefinition:
         """
 
         if len(node.parameters) != self.nargs:
-            raise Exception(
-                '{} paramètre(s) pour {}, mais {} attendu(s)'.format(len(node.parameters), self.name, self.nargs))
+            raise NCError(
+                self.name,
+                '{} parameter(s), but {} expected'.format(len(node.parameters), self.nargs))
 
         n = self._copy_and_replace([x.element for x in node.parameters])
 
@@ -132,7 +142,7 @@ class FixNewCommandContext(fixes.FixContext):
         """
 
         if command.name in self.commands:
-            raise Exception('{} défini deux fois'.format(command.name))
+            raise NCError(command.name, 'defined twice')
 
         self.commands[command.name] = command
 
@@ -165,11 +175,11 @@ class Applier(math_parser.ASTVisitor):
 
         if node.name == 'newcommand':
             if len(node.parameters) == 0:
-                raise fixes.FixError(path, '\\newcommand\\xxx (style TeX)')
+                raise fixes.FixError(path, '\\newcommand\\xxx (TeX style)')
 
             try:
                 context.add_command(CommandDefinition(node))
-            except Exception as e:
+            except NCError as e:
                 raise fixes.FixError(path, str(e))
 
             math_parser.delete_ast_node(node)
@@ -178,7 +188,7 @@ class Applier(math_parser.ASTVisitor):
         elif node.name in context.commands:
             try:
                 context.commands[node.name].replace(node)
-            except Exception as e:
+            except NCError as e:
                 raise fixes.FixError(path, str(e))
             self.visit(parent.left, *args, **kwargs)  # ... same here
         else:
