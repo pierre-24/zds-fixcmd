@@ -120,6 +120,10 @@ class AST:
         self.parent = None
 
 
+class Empty(AST):
+    pass
+
+
 class String(AST):
     """String
 
@@ -232,7 +236,7 @@ class NodeVisitor(object):
         visitor = getattr(self, method_name, self.generic_visit)
         return visitor(node, *args, **kwargs)
 
-    def generic_visit(self, node):
+    def generic_visit(self, node, *args, **kwargs):
         raise Exception('No visit_{} method'.format(type(node).__name__.lower()))
 
 
@@ -309,6 +313,9 @@ class ASTVisitor(NodeVisitor):
         """
 
         self.visit(node.element, *args, **kwargs)
+
+    def visit_empty(self, node, *args, **kwargs):
+        pass
 
 
 class BadEnvironment(Exception):
@@ -723,6 +730,9 @@ class Interpreter(NodeVisitor):
 
         return node.operator + self.visit(node.element, *args, **kwargs)
 
+    def visit_empty(self, node, *args, **kwargs):
+        return ''
+
 
 def delete_ast_node(node):
     """
@@ -756,8 +766,8 @@ def delete_ast_node(node):
         N.right = C.right
         if N.right is not None:
             N.right.parent = N
-    else:  # then B will only contain an empty string
-        N.left = String('')
+    else:  # then B will only contain an empty()
+        N.left = Empty()
         N.left.parent = N
 
 

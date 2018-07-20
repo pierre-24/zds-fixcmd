@@ -105,7 +105,12 @@ class FixableContent(content.Content):
             fix(e, container, path, *args, **kwargs)
 
         sep = '$' * (1 if groups.group(1) is None else 2)
-        return sep + math_parser.Interpreter(e.ast).interpret() + sep
+        s = math_parser.Interpreter(e.ast).interpret()
+
+        if s != '':
+            return sep + math_parser.Interpreter(e.ast).interpret() + sep
+        else:
+            return ''  # remove empty math
 
     @staticmethod
     def extract(path, fixes=None):

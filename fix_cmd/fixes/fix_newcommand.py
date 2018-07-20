@@ -1,3 +1,7 @@
+"""
+Replace \\newcommand definitions by their value.
+"""
+
 import re
 import copy
 

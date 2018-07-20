@@ -1,7 +1,7 @@
 from tests import ZdsFixCmdTestCase
 
 from fix_cmd import fixes, math_parser
-from fix_cmd.fixes import fix_newcommand
+from fix_cmd.fixes import fix_newcommand, fix_spaces
 
 
 class FixTestCase(ZdsFixCmdTestCase):
@@ -56,16 +56,21 @@ class FixTestCase(ZdsFixCmdTestCase):
         self.assertEqual(f.context['naviguer-presque-sans-gps-grace-a-la-navigation-inertielle'].data, 12)
 
 
-class NewCommandTestCase(ZdsFixCmdTestCase):
-
-    def check(self, expr, expected):
-        context = fix_newcommand.FixNewCommandContext(None)
+class WithCheck:
+    def check_base(self, expr, expected, fix, context):
         m = fixes.MathExpression(expr)
-
-        f = fix_newcommand.FixNewCommand()
-        f.fix(m, context, 'none')
+        fix.fix(m, context, 'none')
 
         self.assertEqual(math_parser.Interpreter(m.ast).interpret(), expected)
+
+
+class NewCommandTestCase(ZdsFixCmdTestCase, WithCheck):
+
+    def check(self, expr, expected):
+        f = fix_newcommand.FixNewCommand()
+        context = fix_newcommand.FixNewCommandContext(None)
+
+        self.check_base(expr, expected, f, context)
 
     def test_base(self):
         """Test the principle"""
@@ -102,3 +107,23 @@ class NewCommandTestCase(ZdsFixCmdTestCase):
 
         extract = content.children_dict['test-aussi'].children_dict['une-section-qui-utilise-la-commande']
         self.match_expected('newcommand.une-section-qui-utilise-la-commande', extract.text_value)
+
+
+class SpacesTestCase(ZdsFixCmdTestCase, WithCheck):
+
+    def check(self, expr, expected, env=True):
+        f = fix_spaces.FixSpaces(env)
+        context = fixes.FixContext(None)
+
+        self.check_base(expr, expected, f, context)
+
+    def test_base(self):
+        """Test the principle"""
+
+        self.check('  ', '')
+        self.check(' test ', 'test')
+        self.check(' \\vec{a} ', '\\vec{a}')
+        self.check(' x\\begin{a}x\\end{a}y ', '\nx\\begin{a}x\\end{a}y\n')
+        self.check(' \\begin{a}x\\end{a} ', '\n\\begin{a}x\\end{a}\n')
+
+        self.check(' \\begin{a}x\\end{a} ', '\\begin{a}x\\end{a}', False)  # do not fix envs
