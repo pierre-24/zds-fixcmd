@@ -3,6 +3,8 @@ import tempfile
 import shutil
 import os
 
+import inspect
+
 
 class ZdsFixCmdTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -39,3 +41,19 @@ class ZdsFixCmdTestCase(unittest.TestCase):
 
         shutil.copy(os.path.join(self.tests_files_directory, path), path_in_temp)
         return path_in_temp
+
+    def match_expected(self, name, content):
+
+        n = inspect.stack()[1][3]
+        path = os.path.join(os.path.dirname(__file__), 'expected', n + '.' + name + '.expected')
+
+        if not os.path.exists(path):
+            raise Exception('file {} does not exists'.format(path))
+
+        with open(path, 'rb') as f:
+            expected = f.read().decode('utf-8')
+
+        p = self.maxDiff
+        self.maxDiff = 10000
+        self.assertEqual(expected, content)
+        self.maxDiff = p

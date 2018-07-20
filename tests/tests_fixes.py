@@ -19,13 +19,16 @@ class FixTestCase(ZdsFixCmdTestCase):
 
         content = fixes.FixableContent.extract(self.path, fixes=[replace])
         self.assertTrue(replace in content.fixes)
-        content.fix_containers()
+        content.fix()
 
         self.assertEqual(content.introduction_value.count('$a$'), 0)
         self.assertEqual(content.conclusion_value.count('$a$'), 0)
 
         self.assertEqual(content.children[0].text_value.count('$$a$$'), 5)
         self.assertEqual(content.children[0].text_value.count('$a$'), 6)
+
+        extract = content.children_dict['principe-physique']
+        self.match_expected('principe-physique', extract.text_value)
 
         self.assertEqual(content.children[1].text_value.count('$$a$$'), 2)
         self.assertEqual(content.children[1].text_value.count('$a$'), 6)
@@ -48,7 +51,7 @@ class FixTestCase(ZdsFixCmdTestCase):
 
         f = MyFix()
         content = fixes.FixableContent.extract(self.path, fixes=[f])
-        content.fix_containers()
+        content.fix()
 
         self.assertEqual(f.context['naviguer-presque-sans-gps-grace-a-la-navigation-inertielle'].data, 12)
 
@@ -68,23 +71,34 @@ class NewCommandTestCase(ZdsFixCmdTestCase):
         """Test the principle"""
 
         self.check('\\newcommand{\\test}{\\infty}\\test', '\\infty')
+        self.check('\\newcommand\\test{\\infty}\\test', '\\infty')
         self.check('\\newcommand{\\test}[1]{\\a{<#1>}{#1}}\\test{x}', '\\a{<x>}{x}')
         self.check('\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{x}\\b{y}', '\\u{x}\\v{y}')
         self.check('x\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{\\b{y}}', 'x\\u{\\v{y}}')
 
-    def test_fix(self):
+    def test_fix_article(self):
         """Test the fix on content"""
 
         path = self.copy_to_temporary_directory('article.zip')
 
         f = fix_newcommand.FixNewCommand()
         content = fixes.FixableContent.extract(path, fixes=[f])
+        content.fix()
 
         extract = content.children_dict['principe-physique']
-        self.assertEqual(extract.text_value.count('\deriv'), 3)
-        self.assertEqual(extract.text_value.count('\integ'), 5)
+        self.match_expected('principe-physique', extract.text_value)
 
-        content.fix_containers()
+    def test_fix_tutorial(self):
+        """Test the fix on content"""
 
-        self.assertEqual(extract.text_value.count('\deriv'), 0)
-        self.assertEqual(extract.text_value.count('\integ'), 0)
+        path = self.copy_to_temporary_directory('tuto.zip')
+
+        f = fix_newcommand.FixNewCommand()
+        content = fixes.FixableContent.extract(path, fixes=[f])
+        content.fix()
+
+        extract = content.children_dict['et-encore-un'].children_dict['du-binaire']
+        self.match_expected('du-binaire', extract.text_value)
+
+        extract = content.children_dict['test-aussi'].children_dict['une-section-qui-utilise-la-commande']
+        self.match_expected('une-section-qui-utilise-la-commande', extract.text_value)

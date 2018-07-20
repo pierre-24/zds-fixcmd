@@ -1,0 +1,42 @@
+La navigation inertielle est rendue possible grâce aux lois physiques régissant le mouvement des corps, car elles permettent de déterminer la position d’un objet en connaissant seulement :
+
+* le point de départ,
+* la vitesse initiale,
+* l’accélération à chaque instant,
+* le temps écoulé depuis le départ.
+
+Pour simplifier, nous considérons un mouvement sur une seule dimension seulement (par exemple l’axe des abscisses), mais sachez que les cas à deux et trois dimensions sont identiques.
+
+On part de la définition de l’accélération. Il s’agit de la dérivée de la vitesse par rapport au temps :
+
+$$a$$
+
+On en déduit une expression de la vitesse par intégration :
+
+$$a$$
+
+La vitesse est, par définition, la dérivée de la position par rapport au temps :
+
+$$a$$
+
+On procède alors à une deuxième intégration pour en déduire la position en fonction de la vitesse :
+
+$$a$$
+
+Si on réunit tous les morceaux, on obtient :
+
+$$a$$
+
+En fin de compte, la position est exprimée en fonction des éléments qu'on s'est donné au départ : la position iniitiale, la vitesse initiale et l’accélération jusqu'à l'instant $a$.
+
+Illustrons ce principe physique par un exemple. Imaginez une voiture de sport sur une piste rectiligne, et qui enchaîne les cinq phases suivantes :
+
+1. une phase sans accélération pendant 15 secondes, 
+2. une phase d’accélération pendant les 25 secondes suivantes, 
+3. une nouvelle phase sans accélération pendant les 10 secondes suivantes, 
+4. une phase de freinage pendant 12,5 secondes, 
+5. une nouvelle phase sans accélération à la fin. 
+
+Avec les expressions précédentes, on peut déduire la vitesse, puis la position à partir de l’accélération. La figure ci-dessous montre le résultat qu’on obtient pour notre exemple. 
+
+![Mouvement d’une voiture de sport.](/media/galleries/4488/40114f2a-6437-4cc7-b505-1c8666e2f82c.png)

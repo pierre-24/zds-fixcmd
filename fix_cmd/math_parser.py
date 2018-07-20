@@ -191,12 +191,12 @@ class Command(AST):
     :param parameters: parameters of the command (if any)
     :type parameters: list of SubElement
     """
-    def __init__(self, name, parameters):
+    def __init__(self, name, parameters=None):
         super().__init__()
         self.name = name
-        self.parameters = parameters
+        self.parameters = parameters if parameters is not None else []
 
-        for p in parameters:
+        for p in self.parameters:
             p.parent = self
 
 
@@ -223,8 +223,8 @@ class Environment(AST):
 
 
 class NodeVisitor(object):
-    """Implementation of the visitor pattern. Expect ``visit_[type](node)`` functions, where ``[type]`` is the
-    type of the node, **lowercase**.
+    """Implementation of the visitor pattern.
+    Expect ``visit_[type](node)`` functions, where ``[type]`` is the type of the node, **lowercased**.
     """
 
     def visit(self, node, *args, **kwargs):
@@ -364,7 +364,7 @@ class EnvironmentFix(ASTVisitor):
         return self.node
 
     def visit_command(self, node, *args, **kwargs):
-        """Detect
+        """Detect begin and end of environments
 
         :param node: node
         :type node: Command
@@ -388,7 +388,7 @@ class EnvironmentFix(ASTVisitor):
         super().visit_command(node, *args, **kwargs)
 
     def visit_subelement(self, node, *args, **kwargs):
-        """Rewritten to increase depth
+        """Rewritten to increase depth each type a subelement is visited
 
         :param node: node
         :type node: SubElement

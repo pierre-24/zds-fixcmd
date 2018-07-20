@@ -54,7 +54,7 @@ class FixableContent(content.Content):
                 for _y in self.walk_containers(child):
                     yield _y
 
-    def fix_containers(self, *args, **kwargs):
+    def fix(self, *args, **kwargs):
         """Fix the different containers
         """
 

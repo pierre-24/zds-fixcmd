@@ -175,7 +175,25 @@ class Applier(math_parser.ASTVisitor):
 
         if node.name == 'newcommand':
             if len(node.parameters) == 0:
-                raise fixes.FixError(path, '\\newcommand\\xxx (TeX style)')
+                if not isinstance(parent.right.left, math_parser.Command):
+                    raise fixes.FixError(path, '\\newcommand (TeX style) is not followed by a definition')
+
+                o = parent.right.left
+
+                if len(o.parameters) > 2:
+                    raise fixes.FixError(
+                        path, 'command following \\newcommand (TeX style) should have no more than 2 parameters')
+
+                # move parameter, then get rid of the node
+                name_p = math_parser.SubElement(math_parser.Expression(math_parser.Command(o.name)))
+                name_p.parent = node
+                node.parameters.append(name_p)
+
+                for p in o.parameters:
+                    p.parent = node
+                    node.parameters.append(p)
+
+                math_parser.delete_ast_node(o)
 
             try:
                 context.add_command(CommandDefinition(node))
