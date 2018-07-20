@@ -1,5 +1,5 @@
 """
-zds-nwcmd: remplace les commandes définies par l'utilisateur dans les environements mathématiques
+zds-nwcmd: fix the math expressions
 """
 
 __version__ = '0.1a0'
