@@ -2,7 +2,7 @@
 Change "align" environment by "aligned"
 """
 
-from fix_cmd import fixes, math_parser
+from zds_fixcmd import fixes, math_parser
 
 
 class AlignError(Exception):

@@ -1,7 +1,7 @@
 from tests import ZdsFixCmdTestCase
 
-from fix_cmd import fixes, math_parser
-from fix_cmd.fixes import fix_newcommand, fix_spaces, fix_align
+from zds_fixcmd import fixes, math_parser
+from zds_fixcmd.fixes import fix_newcommand, fix_spaces, fix_align
 
 
 class FixTestCase(ZdsFixCmdTestCase):

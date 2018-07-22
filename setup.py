@@ -1,4 +1,4 @@
-import fix_cmd
+import zds_fixcmd
 from setuptools import setup
 try:  # for pip >= 10
     from pip._internal.req import parse_requirements
@@ -13,11 +13,11 @@ for pkg in parse_requirements('requirements.txt', session=False):
 
 setup(
     name='zds-fixcmd',
-    packages=['fix_cmd', 'fix_cmd.fixes'],
-    version=fix_cmd.__version__,
-    author=fix_cmd.__author__,
-    author_email=fix_cmd.__email__,
-    description=fix_cmd.__doc__,
+    packages=['zds_fixcmd', 'zds_fixcmd.fixes'],
+    version=zds_fixcmd.__version__,
+    author=zds_fixcmd.__author__,
+    author_email=zds_fixcmd.__email__,
+    description=zds_fixcmd.__doc__,
     classifiers=[
         'Operating System :: OS Independent',
         'Programming Language :: Python',
@@ -28,7 +28,7 @@ setup(
     python_requires='>=3',
     entry_points={
         'console_scripts': [
-            'zds-fixcmd = fix_cmd.cmd:main'
+            'zds-fixcmd = zds_fixcmd.cmd:main'
         ]
     },
 )

@@ -5,7 +5,7 @@ Replace \\newcommand definitions by their value.
 import re
 import copy
 
-from fix_cmd import fixes, math_parser
+from zds_fixcmd import fixes, math_parser
 
 
 FIND_PARAM = re.compile('#([0-9])')

@@ -1,7 +1,7 @@
 from tests import ZdsFixCmdTestCase
 
-from fix_cmd import math_parser
-from fix_cmd.math_parser import MathToken as T
+from zds_fixcmd import math_parser
+from zds_fixcmd.math_parser import MathToken as T
 
 
 class MathTestCase(ZdsFixCmdTestCase):

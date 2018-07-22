@@ -1,5 +1,5 @@
 """
-zds-nwcmd: fix the math expressions
+fix the math expressions in ZdS contents
 """
 
 __version__ = '0.1a0'

@@ -2,9 +2,9 @@ import argparse
 import os
 import sys
 
-import fix_cmd
-from fix_cmd import content
-from fix_cmd.fixes import FixableContent, FixError, fix_align, fix_newcommand, fix_spaces
+import zds_fixcmd
+from zds_fixcmd import content
+from zds_fixcmd.fixes import FixableContent, FixError, fix_align, fix_newcommand, fix_spaces
 
 FIXES = [
     fix_newcommand.FixNewCommand(),
@@ -29,9 +29,9 @@ def exit_failure(msg, status=1):
 
 # program options
 def get_arguments_parser():
-    arguments_parser = argparse.ArgumentParser(description=fix_cmd.__doc__)
+    arguments_parser = argparse.ArgumentParser(description=zds_fixcmd.__doc__)
     arguments_parser.add_argument(
-        '-v', '--version', action='version', version='%(prog)s ' + fix_cmd.__version__)
+        '-v', '--version', action='version', version='%(prog)s ' + zds_fixcmd.__version__)
 
     arguments_parser.add_argument('infile', type=str)
 

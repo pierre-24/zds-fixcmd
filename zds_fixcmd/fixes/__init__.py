@@ -1,6 +1,6 @@
 import re
 
-from fix_cmd import content, math_parser
+from zds_fixcmd import content, math_parser
 
 FIND_MATH = re.compile('\\$(\\$)?(.*?)(\\$)?\\$', re.DOTALL)
 

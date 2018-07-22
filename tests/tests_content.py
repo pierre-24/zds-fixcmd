@@ -2,7 +2,7 @@ import os
 
 from tests import ZdsFixCmdTestCase
 
-from fix_cmd import content
+from zds_fixcmd import content
 
 
 class ContentTestCase(ZdsFixCmdTestCase):
