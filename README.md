@@ -1,5 +1,7 @@
 # ``zds-fixcmd``
 
+[![Build Status](https://travis-ci.org/pierre-24/zds-fixcmd.svg?branch=master)](https://travis-ci.org/pierre-24/zds-fixcmd)
+
 A small project to fix the math expression in ZdS contents due to the change of math processor in [zmarkdown](https://github.com/zestedesavoir/zmarkdown), from [MathJax](https://www.mathjax.org/) to [KaTeX](https://github.com/Khan/KaTeX).
 
 3 fixes are implemented:
