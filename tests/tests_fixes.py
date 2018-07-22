@@ -1,7 +1,7 @@
 from tests import ZdsFixCmdTestCase
 
 from fix_cmd import fixes, math_parser
-from fix_cmd.fixes import fix_newcommand, fix_spaces
+from fix_cmd.fixes import fix_newcommand, fix_spaces, fix_align
 
 
 class FixTestCase(ZdsFixCmdTestCase):
@@ -127,3 +127,17 @@ class SpacesTestCase(ZdsFixCmdTestCase, WithCheck):
         self.check(' \\begin{a}x\\end{a} ', '\n\\begin{a}x\\end{a}\n')
 
         self.check(' \\begin{a}x\\end{a} ', '\\begin{a}x\\end{a}', False)  # do not fix envs
+
+
+class AlignTestCase(ZdsFixCmdTestCase, WithCheck):
+
+    def check(self, expr, expected, env=True):
+        f = fix_align.FixAlign(env)
+        context = fixes.FixContext(None)
+
+        self.check_base(expr, expected, f, context)
+
+    def test_base(self):
+        """Test the principle"""
+
+        self.check('\\begin{align}a&=b\\end{align}', '\\begin{aligned}a&=b\\end{aligned}')

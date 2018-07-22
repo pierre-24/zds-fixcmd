@@ -1,5 +1,5 @@
 """
-Strip spaces at the begining and the end of the math expressions, but add "\\n" if an environment is found.
+Strip spaces at the beginning and the end of the math expressions, but add "\\n" if an environment is found.
 """
 
 from fix_cmd import fixes, math_parser
