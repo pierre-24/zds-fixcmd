@@ -1,9 +1,0 @@
-before_script:
-  - make install-dependencies-dev
-
-test_package:
-  tags:
-    - python-numpy
-  script:
-    - python3 setup.py test
-    - make lint
