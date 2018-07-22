@@ -78,6 +78,7 @@ class NewCommandTestCase(ZdsFixCmdTestCase, WithCheck):
         self.check('\\newcommand{\\test}{\\infty}\\test', '\\infty')
         self.check('\\newcommand\\test{\\infty}\\test', '\\infty')
         self.check('\\newcommand{\\test}[1]{\\a{<#1>}{#1}}\\test{x}', '\\a{<x>}{x}')
+        self.check('\\newcommand{\\a}[1]{x: #1}\\a 1', 'x:  1')
         self.check('\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{x}\\b{y}', '\\u{x}\\v{y}')
         self.check('x\\newcommand{\\a}[1]{\\u{#1}}\\newcommand{\\b}[1]{\\v{#1}}\\a{\\b{y}}', 'x\\u{\\v{y}}')
 
@@ -121,6 +122,7 @@ class SpacesTestCase(ZdsFixCmdTestCase, WithCheck):
         """Test the principle"""
 
         self.check('  ', '')
+        self.check('t', 't')
         self.check(' test ', 'test')
         self.check(' \\vec{a} ', '\\vec{a}')
         self.check(' x\\begin{a}x\\end{a}y ', '\nx\\begin{a}x\\end{a}y\n')

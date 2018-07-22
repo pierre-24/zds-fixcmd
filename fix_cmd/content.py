@@ -212,7 +212,7 @@ class Content(Container):
             """Get all files that the archive should contain
 
             :param archive: the zip
-            :type archive: zpifile.ZupFile
+            :type archive: zpifile.ZipFile
             :param container: the container
             :type container: Container
             """
@@ -241,7 +241,7 @@ class Content(Container):
             """Get all files that the archive should contain
 
             :param archive: the zip
-            :type archive: zpifile.ZupFile
+            :type archive: zpifile.ZipFile
             :param container: the container
             :type container: Container
             """

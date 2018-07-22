@@ -386,7 +386,7 @@ class EnvironmentFix(ASTVisitor):
 
             name = sub.left.content
             for c in name:
-                if not c.isalpha():
+                if not c.isalpha() and c != '*':
                     raise BadEnvironment('{} is not a valid name'.format(name))
 
             self.commands.append((name, node, node.name, kwargs.get('depth')))

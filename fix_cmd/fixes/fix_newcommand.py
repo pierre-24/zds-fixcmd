@@ -117,7 +117,20 @@ class CommandDefinition:
         :type node: fix_cmd.math_parser.Command
         """
 
-        if len(node.parameters) != self.nargs:
+        if len(node.parameters) == 0 and self.nargs == 1:  # TeX style \x a → \x{a}
+            parent = node.parent
+            right = parent.right
+
+            if right is None:
+                raise NCError(self.name, 'TeX style used, but no right!')
+
+            e = math_parser.SubElement(right.left)
+            e.parent = node
+            node.parameters.append(e)
+
+            math_parser.delete_ast_node(right)
+
+        elif len(node.parameters) != self.nargs:
             raise NCError(
                 self.name,
                 '{} parameter(s), but {} expected'.format(len(node.parameters), self.nargs))

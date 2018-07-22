@@ -129,6 +129,10 @@ class FixableContent(content.Content):
         y.manifest = x.manifest
         y.children = x.children
         y.children_dict = x.children_dict
+        y.introduction_path = x.introduction_path
+        y.introduction_value = x.introduction_value
+        y.conclusion_path = x.conclusion_path
+        y.conclusion_value = x.conclusion_value
 
         return y
 

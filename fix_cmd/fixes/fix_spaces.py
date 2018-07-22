@@ -40,6 +40,7 @@ class FixSpaces(fixes.Fix):
         """
 
         start = math_expr.ast
+
         while True:
             if not isinstance(start.left, math_parser.String):
                 break
@@ -52,6 +53,8 @@ class FixSpaces(fixes.Fix):
                 else:
                     start.left.content = striped
                     break
+            else:
+                break
 
         end = start
         while end.right is not None:
@@ -72,6 +75,8 @@ class FixSpaces(fixes.Fix):
                 else:
                     end.left.content = striped
                     break
+            else:
+                break
 
         if self.fix_environments and FindEnv(start).find():
             if isinstance(start.left, math_parser.String):
