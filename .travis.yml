@@ -1,0 +1,15 @@
+dist: trusty
+language: python
+sudo: required
+
+python:
+  - 3.4
+
+cache:
+  pip: true
+
+install:
+  - pip install -q -r requirements.txt
+
+script:
+  - python setup.py test
